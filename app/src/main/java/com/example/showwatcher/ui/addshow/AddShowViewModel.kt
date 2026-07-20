@@ -63,11 +63,13 @@ class AddShowViewModel @Inject constructor(
     private val _events = MutableSharedFlow<AddShowEvent>()
     val events: SharedFlow<AddShowEvent> = _events
 
-    fun addShow(tmdbId: Long, startingSeason: Int, startingEpisode: Int) {
+    suspend fun fetchSeasons(tmdbId: Long): AppResult<List<Int>> = repository.getShowSeasons(tmdbId)
+
+    fun addShow(tmdbId: Long, startingSeason: Int) {
         if (_addingTmdbId.value != null) return
         _addingTmdbId.value = tmdbId
         viewModelScope.launch {
-            when (val result = repository.addShow(tmdbId, startingSeason, startingEpisode)) {
+            when (val result = repository.addShow(tmdbId, startingSeason)) {
                 is AppResult.Success -> _events.emit(AddShowEvent.NavigateToShowDetail(result.value))
                 is AppResult.Error -> _events.emit(AddShowEvent.Error(result.error.toUserMessage()))
             }

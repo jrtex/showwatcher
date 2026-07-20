@@ -52,6 +52,12 @@ class ShowRepositoryImpl @Inject constructor(
     override suspend fun searchTmdb(query: String): AppResult<List<TmdbSearchResult>> =
         tmdb.searchTv(query)
 
+    override suspend fun getShowSeasons(tmdbId: Long): AppResult<List<Int>> =
+        when (val result = tmdb.getShowDetails(tmdbId)) {
+            is AppResult.Success -> AppResult.Success(result.value.trackedSeasonNumbers)
+            is AppResult.Error -> result
+        }
+
     override suspend fun addShow(tmdbId: Long, startingSeason: Int, startingEpisode: Int): AppResult<Long> {
         if (showDao.getByTmdbId(tmdbId) != null) {
             return AppResult.Error(AppError.AlreadyAdded)

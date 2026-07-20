@@ -1,5 +1,6 @@
 package com.example.showwatcher.data.repository
 
+import com.example.showwatcher.data.AppError
 import com.example.showwatcher.data.AppResult
 import com.example.showwatcher.data.local.EpisodeEntity
 import com.example.showwatcher.data.local.SeasonCacheMetaEntity
@@ -323,5 +324,25 @@ class ShowRepositoryImplTest {
         assertEquals(2, episodes.size)
         assertTrue(episodes.first { it.episodeNumber == 1 }.watched)
         assertFalse(episodes.first { it.episodeNumber == 2 }.watched)
+    }
+
+    // ---- getShowSeasons (Add Show season picker) ----
+
+    @Test
+    fun `getShowSeasons returns the tracked season numbers`() = runTest {
+        tmdb.showDetailsResult = AppResult.Success(
+            TmdbShowDetails(tmdbId = 42L, title = "Test Show", posterPath = null, firstAirYear = 2020, trackedSeasonNumbers = listOf(1, 2, 3)),
+        )
+
+        val result = repository.getShowSeasons(42L) as AppResult.Success
+        assertEquals(listOf(1, 2, 3), result.value)
+    }
+
+    @Test
+    fun `getShowSeasons propagates TMDB errors`() = runTest {
+        tmdb.showDetailsResult = AppResult.Error(AppError.Tmdb("Not found", 404))
+
+        val result = repository.getShowSeasons(42L)
+        assertTrue(result is AppResult.Error)
     }
 }

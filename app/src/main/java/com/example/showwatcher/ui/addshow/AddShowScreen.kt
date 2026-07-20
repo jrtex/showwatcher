@@ -1,14 +1,19 @@
 package com.example.showwatcher.ui.addshow
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,12 +24,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.showwatcher.data.AppResult
 import com.example.showwatcher.data.remote.TmdbSearchResult
 import com.example.showwatcher.ui.common.UiState
+import com.example.showwatcher.ui.common.toUserMessage
 import com.example.showwatcher.ui.components.EmptyState
 import com.example.showwatcher.ui.components.EventBanner
 import com.example.showwatcher.ui.components.PosterImage
@@ -76,8 +82,9 @@ fun AddShowScreen(
                                 result = result,
                                 isAdding = addingTmdbId == result.tmdbId,
                                 addDisabled = addingTmdbId != null,
-                                onConfirmAdd = { season, episode ->
-                                    viewModel.addShow(result.tmdbId, season, episode)
+                                fetchSeasons = { viewModel.fetchSeasons(result.tmdbId) },
+                                onConfirmAdd = { season ->
+                                    viewModel.addShow(result.tmdbId, season)
                                 },
                             )
                         }
@@ -94,11 +101,26 @@ private fun SearchResultRow(
     result: TmdbSearchResult,
     isAdding: Boolean,
     addDisabled: Boolean,
-    onConfirmAdd: (season: Int, episode: Int) -> Unit,
+    fetchSeasons: suspend () -> AppResult<List<Int>>,
+    onConfirmAdd: (season: Int) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    var season by remember { mutableIntStateOf(1) }
-    var watchedUpTo by remember { mutableIntStateOf(0) }
+    var selectedSeason by remember { mutableStateOf<Int?>(null) }
+    var seasonsState by remember { mutableStateOf<UiState<List<Int>>?>(null) }
+    var retryTrigger by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(expanded, retryTrigger) {
+        if (expanded && seasonsState !is UiState.Content) {
+            seasonsState = UiState.Loading
+            seasonsState = when (val outcome = fetchSeasons()) {
+                is AppResult.Success -> {
+                    selectedSeason = outcome.value.firstOrNull()
+                    UiState.Content(outcome.value)
+                }
+                is AppResult.Error -> UiState.FatalError(outcome.error.toUserMessage())
+            }
+        }
+    }
 
     Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
         Row {
@@ -117,26 +139,61 @@ private fun SearchResultRow(
             }
         }
         if (expanded) {
-            OutlinedTextField(
-                value = season.toString(),
-                onValueChange = { season = it.toIntOrNull() ?: season },
-                label = { Text("Season") },
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = watchedUpTo.toString(),
-                onValueChange = { watchedUpTo = it.toIntOrNull() ?: watchedUpTo },
-                label = { Text("Watched up to episode") },
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Text(text = "Starting season", modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+            when (val current = seasonsState) {
+                null, is UiState.Loading -> CircularProgressIndicator(modifier = Modifier.padding(8.dp))
+                is UiState.FatalError -> EventBanner(
+                    message = current.message,
+                    onDismiss = { retryTrigger++ },
+                    isError = true,
+                )
+                is UiState.Content -> {
+                    if (current.data.isEmpty()) {
+                        EmptyState("No seasons found for this show")
+                    } else {
+                        FlowRow(modifier = Modifier.fillMaxWidth()) {
+                            for (season in current.data) {
+                                SeasonButton(
+                                    number = season,
+                                    selected = season == selectedSeason,
+                                    onClick = { selectedSeason = season },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             Button(
-                onClick = { onConfirmAdd(season, watchedUpTo) },
-                enabled = !isAdding && !addDisabled,
+                onClick = { selectedSeason?.let(onConfirmAdd) },
+                enabled = selectedSeason != null && !isAdding && !addDisabled,
+                modifier = Modifier.padding(top = 8.dp),
             ) {
                 Text(if (isAdding) "Adding…" else "Start tracking")
             }
+        }
+    }
+}
+
+@Composable
+private fun SeasonButton(number: Int, selected: Boolean, onClick: () -> Unit) {
+    val modifier = Modifier.size(48.dp).padding(4.dp)
+    if (selected) {
+        Button(
+            onClick = onClick,
+            modifier = modifier,
+            shape = RoundedCornerShape(6.dp),
+            contentPadding = PaddingValues(0.dp),
+        ) {
+            Text(text = number.toString())
+        }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            modifier = modifier,
+            shape = RoundedCornerShape(6.dp),
+            contentPadding = PaddingValues(0.dp),
+        ) {
+            Text(text = number.toString())
         }
     }
 }

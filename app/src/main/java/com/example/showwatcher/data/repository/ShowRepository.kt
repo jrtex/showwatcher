@@ -18,6 +18,9 @@ interface ShowRepository {
 
     suspend fun searchTmdb(query: String): AppResult<List<TmdbSearchResult>>
 
+    /** Season numbers available for a show (season 0 excluded), for the Add Show season picker. */
+    suspend fun getShowSeasons(tmdbId: Long): AppResult<List<Int>>
+
     /** ANDROID_HANDOFF.md §4.1. */
     suspend fun addShow(tmdbId: Long, startingSeason: Int = 1, startingEpisode: Int = 0): AppResult<Long>
 
