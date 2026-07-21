@@ -3,13 +3,19 @@ package com.example.showwatcher.data.repository
 import com.example.showwatcher.data.AppResult
 import com.example.showwatcher.data.local.EpisodeEntity
 import com.example.showwatcher.data.local.ShowEntity
+import com.example.showwatcher.data.local.ShowUpcoming
 import com.example.showwatcher.data.local.ShowWithProgress
 import com.example.showwatcher.data.remote.TmdbSearchResult
 import kotlinx.coroutines.flow.Flow
 
 interface ShowRepository {
     fun observeShowsByStatus(status: String): Flow<List<ShowEntity>>
-    fun observeShowsWithProgressByStatus(status: String): Flow<List<ShowWithProgress>>
+
+    /** Active shows whose current season's first episode has already aired. */
+    fun observeActiveShowsWithProgress(): Flow<List<ShowWithProgress>>
+
+    /** Active shows whose current season's first episode hasn't aired yet (or has no known air date). */
+    fun observeUpcomingShows(): Flow<List<ShowUpcoming>>
     fun observeShow(showId: Long): Flow<ShowEntity?>
     suspend fun getShow(showId: Long): ShowEntity?
     fun observeEpisodes(showId: Long, seasonNumber: Int): Flow<List<EpisodeEntity>>

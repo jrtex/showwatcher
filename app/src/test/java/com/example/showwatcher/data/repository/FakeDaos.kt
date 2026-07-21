@@ -6,6 +6,7 @@ import com.example.showwatcher.data.local.SeasonCacheDao
 import com.example.showwatcher.data.local.SeasonCacheMetaEntity
 import com.example.showwatcher.data.local.ShowDao
 import com.example.showwatcher.data.local.ShowEntity
+import com.example.showwatcher.data.local.ShowUpcoming
 import com.example.showwatcher.data.local.ShowWithProgress
 import com.example.showwatcher.data.local.TransactionRunner
 import kotlinx.coroutines.flow.Flow
@@ -25,7 +26,10 @@ class FakeShowDao : ShowDao {
     override fun observeByStatus(status: String): Flow<List<ShowEntity>> =
         flowOf(shows.values.filter { it.status == status })
 
-    override fun observeByStatusWithProgress(status: String): Flow<List<ShowWithProgress>> =
+    override fun observeActiveWithProgress(today: String, status: String): Flow<List<ShowWithProgress>> =
+        flowOf(emptyList())
+
+    override fun observeUpcoming(today: String, status: String): Flow<List<ShowUpcoming>> =
         flowOf(emptyList())
 
     override suspend fun insert(show: ShowEntity): Long {

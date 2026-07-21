@@ -12,6 +12,12 @@ data class ShowWithProgress(
     val watchedCount: Int,
 )
 
+/** Active-status shows whose current season's first episode hasn't aired yet (or has no known air date). */
+data class ShowUpcoming(
+    @Embedded val show: ShowEntity,
+    val firstEpisodeAirDate: String?,
+)
+
 @Dao
 interface ShowDao {
     @Query("SELECT * FROM shows WHERE id = :showId")
@@ -26,15 +32,38 @@ interface ShowDao {
     @Query("SELECT * FROM shows WHERE status = :status ORDER BY updatedAt DESC")
     fun observeByStatus(status: String): Flow<List<ShowEntity>>
 
+    // Air dates are stored as ISO "YYYY-MM-DD" text, so lexicographic comparison against
+    // `:today` (also "YYYY-MM-DD") is a correct chronological comparison without needing
+    // date parsing. A null/missing first-episode air date counts as not-yet-aired.
     @Query(
         """
-        SELECT s.*,
-        (SELECT COUNT(*) FROM episodes e WHERE e.showId = s.id AND e.seasonNumber = s.currentSeason) AS totalCount,
-        (SELECT COUNT(*) FROM episodes e WHERE e.showId = s.id AND e.seasonNumber = s.currentSeason AND e.watched = 1) AS watchedCount
-        FROM shows s WHERE s.status = :status ORDER BY s.updatedAt DESC
+        SELECT * FROM (
+            SELECT s.*,
+            (SELECT COUNT(*) FROM episodes e WHERE e.showId = s.id AND e.seasonNumber = s.currentSeason) AS totalCount,
+            (SELECT COUNT(*) FROM episodes e WHERE e.showId = s.id AND e.seasonNumber = s.currentSeason AND e.watched = 1) AS watchedCount,
+            (SELECT airDate FROM episodes e WHERE e.showId = s.id AND e.seasonNumber = s.currentSeason
+                ORDER BY e.episodeNumber ASC LIMIT 1) AS firstEpisodeAirDate
+            FROM shows s WHERE s.status = :status
+        )
+        WHERE firstEpisodeAirDate IS NOT NULL AND firstEpisodeAirDate <= :today
+        ORDER BY updatedAt DESC
         """,
     )
-    fun observeByStatusWithProgress(status: String): Flow<List<ShowWithProgress>>
+    fun observeActiveWithProgress(today: String, status: String = ShowStatus.ACTIVE): Flow<List<ShowWithProgress>>
+
+    @Query(
+        """
+        SELECT * FROM (
+            SELECT s.*,
+            (SELECT airDate FROM episodes e WHERE e.showId = s.id AND e.seasonNumber = s.currentSeason
+                ORDER BY e.episodeNumber ASC LIMIT 1) AS firstEpisodeAirDate
+            FROM shows s WHERE s.status = :status
+        )
+        WHERE firstEpisodeAirDate IS NULL OR firstEpisodeAirDate > :today
+        ORDER BY updatedAt DESC
+        """,
+    )
+    fun observeUpcoming(today: String, status: String = ShowStatus.ACTIVE): Flow<List<ShowUpcoming>>
 
     @Insert
     suspend fun insert(show: ShowEntity): Long

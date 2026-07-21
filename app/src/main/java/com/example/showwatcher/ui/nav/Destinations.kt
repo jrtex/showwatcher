@@ -4,6 +4,9 @@ import kotlinx.serialization.Serializable
 
 sealed interface Destination {
     @Serializable
+    data object Upcoming : Destination
+
+    @Serializable
     data object Dashboard : Destination
 
     @Serializable
