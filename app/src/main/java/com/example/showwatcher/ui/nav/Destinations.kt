@@ -20,4 +20,7 @@ sealed interface Destination {
 
     @Serializable
     data class ArchiveDetail(val showId: Long) : Destination
+
+    @Serializable
+    data object Settings : Destination
 }

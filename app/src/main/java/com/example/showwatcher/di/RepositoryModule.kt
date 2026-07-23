@@ -1,6 +1,8 @@
 package com.example.showwatcher.di
 
 import com.example.showwatcher.data.Clock
+import com.example.showwatcher.data.SettingsRepository
+import com.example.showwatcher.data.SettingsRepositoryImpl
 import com.example.showwatcher.data.SystemClock
 import com.example.showwatcher.data.local.RoomTransactionRunner
 import com.example.showwatcher.data.local.TransactionRunner
@@ -30,4 +32,8 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindTransactionRunner(impl: RoomTransactionRunner): TransactionRunner
+
+    @Binds
+    @Singleton
+    abstract fun bindSettingsRepository(impl: SettingsRepositoryImpl): SettingsRepository
 }

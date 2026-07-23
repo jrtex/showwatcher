@@ -10,12 +10,20 @@ data class ShowWithProgress(
     @Embedded val show: ShowEntity,
     val totalCount: Int,
     val watchedCount: Int,
+    val nextEpisodeAirDate: String?,
 )
 
 /** Active-status shows whose current season's first episode hasn't aired yet (or has no known air date). */
 data class ShowUpcoming(
     @Embedded val show: ShowEntity,
     val firstEpisodeAirDate: String?,
+    val nextEpisodeAirDate: String?,
+)
+
+/** A show plus the air date of its earliest unwatched episode across all seasons, for sort purposes. */
+data class ShowWithNextEpisode(
+    @Embedded val show: ShowEntity,
+    val nextEpisodeAirDate: String?,
 )
 
 @Dao
@@ -29,8 +37,19 @@ interface ShowDao {
     @Query("SELECT * FROM shows WHERE tmdbId = :tmdbId")
     suspend fun getByTmdbId(tmdbId: Long): ShowEntity?
 
-    @Query("SELECT * FROM shows WHERE status = :status ORDER BY updatedAt DESC")
-    fun observeByStatus(status: String): Flow<List<ShowEntity>>
+    // The nextEpisodeAirDate subquery deliberately ignores currentSeason (unlike firstEpisodeAirDate
+    // below) since it's used for "next episode to watch" sorting, which can span past a season
+    // boundary if the user hasn't caught up.
+    @Query(
+        """
+        SELECT s.*,
+        (SELECT airDate FROM episodes e WHERE e.showId = s.id AND e.watched = 0
+            ORDER BY e.seasonNumber ASC, e.episodeNumber ASC LIMIT 1) AS nextEpisodeAirDate
+        FROM shows s WHERE s.status = :status
+        ORDER BY s.updatedAt DESC
+        """,
+    )
+    fun observeByStatusWithNextEpisode(status: String): Flow<List<ShowWithNextEpisode>>
 
     // Air dates are stored as ISO "YYYY-MM-DD" text, so lexicographic comparison against
     // `:today` (also "YYYY-MM-DD") is a correct chronological comparison without needing
@@ -42,7 +61,9 @@ interface ShowDao {
             (SELECT COUNT(*) FROM episodes e WHERE e.showId = s.id AND e.seasonNumber = s.currentSeason) AS totalCount,
             (SELECT COUNT(*) FROM episodes e WHERE e.showId = s.id AND e.seasonNumber = s.currentSeason AND e.watched = 1) AS watchedCount,
             (SELECT airDate FROM episodes e WHERE e.showId = s.id AND e.seasonNumber = s.currentSeason
-                ORDER BY e.episodeNumber ASC LIMIT 1) AS firstEpisodeAirDate
+                ORDER BY e.episodeNumber ASC LIMIT 1) AS firstEpisodeAirDate,
+            (SELECT airDate FROM episodes e WHERE e.showId = s.id AND e.watched = 0
+                ORDER BY e.seasonNumber ASC, e.episodeNumber ASC LIMIT 1) AS nextEpisodeAirDate
             FROM shows s WHERE s.status = :status
         )
         WHERE firstEpisodeAirDate IS NOT NULL AND firstEpisodeAirDate <= :today
@@ -56,7 +77,9 @@ interface ShowDao {
         SELECT * FROM (
             SELECT s.*,
             (SELECT airDate FROM episodes e WHERE e.showId = s.id AND e.seasonNumber = s.currentSeason
-                ORDER BY e.episodeNumber ASC LIMIT 1) AS firstEpisodeAirDate
+                ORDER BY e.episodeNumber ASC LIMIT 1) AS firstEpisodeAirDate,
+            (SELECT airDate FROM episodes e WHERE e.showId = s.id AND e.watched = 0
+                ORDER BY e.seasonNumber ASC, e.episodeNumber ASC LIMIT 1) AS nextEpisodeAirDate
             FROM shows s WHERE s.status = :status
         )
         WHERE firstEpisodeAirDate IS NULL OR firstEpisodeAirDate > :today

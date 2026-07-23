@@ -17,6 +17,7 @@ import com.example.showwatcher.ui.addshow.AddShowScreen
 import com.example.showwatcher.ui.archive.ArchiveScreen
 import com.example.showwatcher.ui.archivedetail.ArchiveDetailScreen
 import com.example.showwatcher.ui.dashboard.DashboardScreen
+import com.example.showwatcher.ui.settings.SettingsScreen
 import com.example.showwatcher.ui.showdetail.ShowDetailScreen
 import com.example.showwatcher.ui.upcoming.UpcomingScreen
 
@@ -80,10 +81,16 @@ fun ShowWatcherNavHost() {
             modifier = androidx.compose.ui.Modifier.padding(padding),
         ) {
             composable<Destination.Upcoming> {
-                UpcomingScreen(onShowClick = { navController.navigate(Destination.ShowDetail(it)) })
+                UpcomingScreen(
+                    onShowClick = { navController.navigate(Destination.ShowDetail(it)) },
+                    onSettingsClick = { navController.navigate(Destination.Settings) },
+                )
             }
             composable<Destination.Dashboard> {
-                DashboardScreen(onShowClick = { navController.navigate(Destination.ShowDetail(it)) })
+                DashboardScreen(
+                    onShowClick = { navController.navigate(Destination.ShowDetail(it)) },
+                    onSettingsClick = { navController.navigate(Destination.Settings) },
+                )
             }
             composable<Destination.AddShow> {
                 AddShowScreen(
@@ -98,7 +105,10 @@ fun ShowWatcherNavHost() {
                 ShowDetailScreen(onDeleted = { navController.popBackStack() })
             }
             composable<Destination.Archive> {
-                ArchiveScreen(onShowClick = { navController.navigate(Destination.ArchiveDetail(it)) })
+                ArchiveScreen(
+                    onShowClick = { navController.navigate(Destination.ArchiveDetail(it)) },
+                    onSettingsClick = { navController.navigate(Destination.Settings) },
+                )
             }
             composable<Destination.ArchiveDetail> {
                 ArchiveDetailScreen(
@@ -108,6 +118,9 @@ fun ShowWatcherNavHost() {
                         }
                     },
                 )
+            }
+            composable<Destination.Settings> {
+                SettingsScreen()
             }
         }
     }
