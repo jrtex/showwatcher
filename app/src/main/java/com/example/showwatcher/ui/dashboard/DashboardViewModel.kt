@@ -2,9 +2,11 @@ package com.example.showwatcher.ui.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.showwatcher.data.Clock
 import com.example.showwatcher.data.SettingsRepository
 import com.example.showwatcher.data.local.ShowWithProgress
 import com.example.showwatcher.data.repository.ShowRepository
+import com.example.showwatcher.data.today
 import com.example.showwatcher.ui.common.UiState
 import com.example.showwatcher.ui.common.sortedByShowOrder
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,10 +21,16 @@ import kotlinx.coroutines.flow.stateIn
 class DashboardViewModel @Inject constructor(
     repository: ShowRepository,
     settingsRepository: SettingsRepository,
+    clock: Clock,
 ) : ViewModel() {
     val uiState: StateFlow<UiState<List<ShowWithProgress>>> =
         combine(repository.observeActiveShowsWithProgress(), settingsRepository.sortOrder) { shows, order ->
-            shows.sortedByShowOrder(order, title = { it.show.title }, nextEpisodeAirDate = { it.nextEpisodeAirDate })
+            shows.sortedByShowOrder(
+                order,
+                today = clock.today(),
+                title = { it.show.title },
+                nextEpisodeAirDate = { it.nextEpisodeAirDate },
+            )
         }
             .map<List<ShowWithProgress>, UiState<List<ShowWithProgress>>> { UiState.Content(it) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)

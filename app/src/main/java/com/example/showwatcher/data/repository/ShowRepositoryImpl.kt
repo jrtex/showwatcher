@@ -4,6 +4,7 @@ import android.database.sqlite.SQLiteConstraintException
 import com.example.showwatcher.data.AppError
 import com.example.showwatcher.data.AppResult
 import com.example.showwatcher.data.Clock
+import com.example.showwatcher.data.today
 import com.example.showwatcher.data.local.EpisodeDao
 import com.example.showwatcher.data.local.EpisodeEntity
 import com.example.showwatcher.data.local.SeasonCacheDao
@@ -18,20 +19,10 @@ import com.example.showwatcher.data.local.TransactionRunner
 import com.example.showwatcher.data.remote.TmdbEpisode
 import com.example.showwatcher.data.remote.TmdbRemoteDataSource
 import com.example.showwatcher.data.remote.TmdbSearchResult
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 
 private const val STALE_AFTER_MILLIS = 3L * 24 * 60 * 60 * 1000
-
-/** UTC "YYYY-MM-DD", matching the format TMDB's `air_date` fields use, for lexicographic comparison. */
-private fun isoDate(epochMillis: Long): String =
-    SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        .apply { timeZone = TimeZone.getTimeZone("UTC") }
-        .format(Date(epochMillis))
 
 class ShowRepositoryImpl @Inject constructor(
     private val transactionRunner: TransactionRunner,
@@ -46,10 +37,10 @@ class ShowRepositoryImpl @Inject constructor(
         showDao.observeByStatusWithNextEpisode(status)
 
     override fun observeActiveShowsWithProgress(): Flow<List<ShowWithProgress>> =
-        showDao.observeActiveWithProgress(today = isoDate(clock.nowMillis()))
+        showDao.observeActiveWithProgress(today = clock.today())
 
     override fun observeUpcomingShows(): Flow<List<ShowUpcoming>> =
-        showDao.observeUpcoming(today = isoDate(clock.nowMillis()))
+        showDao.observeUpcoming(today = clock.today())
 
     override fun observeShow(showId: Long): Flow<ShowEntity?> = showDao.observeById(showId)
 
