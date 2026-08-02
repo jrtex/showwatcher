@@ -98,6 +98,12 @@ interface ShowDao {
     suspend fun advanceSeason(showId: Long, currentSeason: Int, totalSeasons: Int, updatedAt: Long)
 
     @Query(
+        "UPDATE shows SET title = :title, posterPath = :posterPath, totalSeasons = :totalSeasons, " +
+            "updatedAt = :updatedAt WHERE id = :showId",
+    )
+    suspend fun updateMetadata(showId: Long, title: String, posterPath: String?, totalSeasons: Int, updatedAt: Long)
+
+    @Query(
         "UPDATE shows SET status = :status, archivedAt = :archivedAt, updatedAt = :updatedAt " +
             "WHERE id = :showId",
     )

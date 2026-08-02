@@ -7,6 +7,7 @@ import com.example.showwatcher.data.SettingsRepository
 import com.example.showwatcher.data.local.ShowWithProgress
 import com.example.showwatcher.data.repository.ShowRepository
 import com.example.showwatcher.data.today
+import com.example.showwatcher.ui.common.ShowListKind
 import com.example.showwatcher.ui.common.UiState
 import com.example.showwatcher.ui.common.sortedByShowOrder
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,6 +28,7 @@ class DashboardViewModel @Inject constructor(
         combine(repository.observeActiveShowsWithProgress(), settingsRepository.sortOrder) { shows, order ->
             shows.sortedByShowOrder(
                 order,
+                kind = ShowListKind.ACTIVE_OR_ARCHIVE,
                 today = clock.today(),
                 title = { it.show.title },
                 nextEpisodeAirDate = { it.nextEpisodeAirDate },

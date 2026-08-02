@@ -136,7 +136,44 @@ class ShowRepositoryImpl @Inject constructor(
             )
         }
 
-        // Season complete: consult TMDB for the authoritative season list before writing anything.
+        return evaluateSeasonCompletion(show, now)
+    }
+
+    override suspend fun setAllEpisodesWatched(showId: Long, seasonNumber: Int, watched: Boolean): AppResult<ToggleOutcome> {
+        val show = showDao.getById(showId)
+            ?: return AppResult.Error(AppError.Unknown(IllegalStateException("Show $showId not found")))
+        val now = clock.nowMillis()
+        episodeDao.setAllWatchedForSeason(showId, seasonNumber, watched, if (watched) now else null)
+
+        if (!watched || seasonNumber != show.currentSeason) {
+            return AppResult.Success(
+                ToggleOutcome(show, episodeDao.getForSeason(showId, seasonNumber), ToggleEvent.None),
+            )
+        }
+
+        return evaluateSeasonCompletion(show, now)
+    }
+
+    override suspend fun ensureSeasonLoaded(showId: Long, seasonNumber: Int): AppResult<Unit> {
+        if (episodeDao.getForSeason(showId, seasonNumber).isNotEmpty()) return AppResult.Success(Unit)
+
+        val show = showDao.getById(showId)
+            ?: return AppResult.Error(AppError.Unknown(IllegalStateException("Show $showId not found")))
+        val seasonResult = tmdb.getSeasonEpisodes(show.tmdbId, seasonNumber)
+        val season = when (seasonResult) {
+            is AppResult.Error -> return seasonResult
+            is AppResult.Success -> seasonResult.value
+        }
+        transactionRunner.run { upsertSeasonEpisodes(showId, seasonNumber, season.episodes, clock.nowMillis()) }
+        return AppResult.Success(Unit)
+    }
+
+    /**
+     * Season complete: consult TMDB for the authoritative season list before writing anything,
+     * then either archive (no season past the current one) or advance to the next season. Shared
+     * by [toggleEpisodeWatched] and [setAllEpisodesWatched] so "season complete" has one definition.
+     */
+    private suspend fun evaluateSeasonCompletion(show: ShowEntity, now: Long): AppResult<ToggleOutcome> {
         val detailsResult = tmdb.getShowDetails(show.tmdbId)
         val details = when (detailsResult) {
             is AppResult.Error -> return detailsResult
@@ -196,17 +233,28 @@ class ShowRepositoryImpl @Inject constructor(
             return AppResult.Success(RefreshOutcome(show, episodeDao.getForSeason(showId, season)))
         }
 
+        val detailsResult = tmdb.getShowDetails(show.tmdbId)
+        val details = when (detailsResult) {
+            is AppResult.Error -> return detailsResult
+            is AppResult.Success -> detailsResult.value
+        }
+
         val seasonResult = tmdb.getSeasonEpisodes(show.tmdbId, season)
         val seasonEpisodes = when (seasonResult) {
             is AppResult.Error -> return seasonResult
             is AppResult.Success -> seasonResult.value
         }
 
+        val newSeasonAvailable = details.trackedSeasonNumbers.filter { it > show.totalSeasons }.maxOrNull()
+
         transactionRunner.run {
+            showDao.updateMetadata(showId, details.title, details.posterPath, details.trackedSeasonNumbers.size, now)
             upsertSeasonEpisodes(showId, season, seasonEpisodes.episodes, now)
         }
 
-        return AppResult.Success(RefreshOutcome(showDao.getById(showId)!!, episodeDao.getForSeason(showId, season)))
+        return AppResult.Success(
+            RefreshOutcome(showDao.getById(showId)!!, episodeDao.getForSeason(showId, season), newSeasonAvailable),
+        )
     }
 
     override suspend fun reactivateShow(showId: Long) {

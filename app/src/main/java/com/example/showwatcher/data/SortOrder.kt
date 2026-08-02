@@ -4,8 +4,8 @@ package com.example.showwatcher.data
 enum class SortOrder(val storageKey: String, val label: String) {
     ALPHABETICAL_ASC("alphabetical_asc", "Alphabetical (A–Z)"),
     ALPHABETICAL_DESC("alphabetical_desc", "Alphabetical (Z–A)"),
-    NEXT_EPISODE_ASC("next_episode_asc", "Next episode date (soonest first)"),
-    NEXT_EPISODE_DESC("next_episode_desc", "Next episode date (latest first)"),
+    NEXT_EPISODE_CLOSEST("next_episode_asc", "Air date: closest first"),
+    NEXT_EPISODE_FURTHEST("next_episode_desc", "Air date: furthest first"),
     ;
 
     companion object {

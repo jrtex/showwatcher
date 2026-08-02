@@ -56,6 +56,12 @@ interface EpisodeDao {
     suspend fun setWatched(episodeId: Long, watched: Boolean, watchedAt: Long?)
 
     @Query(
+        "UPDATE episodes SET watched = :watched, watchedAt = :watchedAt WHERE showId = :showId " +
+            "AND seasonNumber = :seasonNumber",
+    )
+    suspend fun setAllWatchedForSeason(showId: Long, seasonNumber: Int, watched: Boolean, watchedAt: Long?)
+
+    @Query(
         "UPDATE episodes SET watched = 1, watchedAt = :watchedAt WHERE showId = :showId " +
             "AND seasonNumber = :seasonNumber AND episodeNumber <= :upToEpisodeNumber",
     )

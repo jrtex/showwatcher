@@ -44,6 +44,11 @@ class FakeShowDao : ShowDao {
         shows[showId] = existing.copy(currentSeason = currentSeason, totalSeasons = totalSeasons, updatedAt = updatedAt)
     }
 
+    override suspend fun updateMetadata(showId: Long, title: String, posterPath: String?, totalSeasons: Int, updatedAt: Long) {
+        val existing = shows.getValue(showId)
+        shows[showId] = existing.copy(title = title, posterPath = posterPath, totalSeasons = totalSeasons, updatedAt = updatedAt)
+    }
+
     override suspend fun archive(showId: Long, status: String, archivedAt: Long, updatedAt: Long) {
         val existing = shows.getValue(showId)
         shows[showId] = existing.copy(status = status, archivedAt = archivedAt, updatedAt = updatedAt)
@@ -98,6 +103,12 @@ class FakeEpisodeDao : EpisodeDao {
     override suspend fun setWatched(episodeId: Long, watched: Boolean, watchedAt: Long?) {
         val existing = episodes.getValue(episodeId)
         episodes[episodeId] = existing.copy(watched = watched, watchedAt = watchedAt)
+    }
+
+    override suspend fun setAllWatchedForSeason(showId: Long, seasonNumber: Int, watched: Boolean, watchedAt: Long?) {
+        episodes.values
+            .filter { it.showId == showId && it.seasonNumber == seasonNumber }
+            .forEach { episodes[it.id] = it.copy(watched = watched, watchedAt = watchedAt) }
     }
 
     override suspend fun markWatchedUpToEpisodeNumber(

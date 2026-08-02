@@ -9,6 +9,7 @@ import com.example.showwatcher.data.local.EpisodeEntity
 import com.example.showwatcher.data.local.ShowEntity
 import com.example.showwatcher.data.repository.ShowRepository
 import com.example.showwatcher.data.repository.ToggleEvent
+import com.example.showwatcher.data.repository.ToggleOutcome
 import com.example.showwatcher.ui.common.UiState
 import com.example.showwatcher.ui.common.toUserMessage
 import com.example.showwatcher.ui.nav.Destination
@@ -26,7 +27,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-data class ShowDetailData(val show: ShowEntity, val episodes: List<EpisodeEntity>)
+data class ShowDetailData(val show: ShowEntity, val viewedSeason: Int, val episodes: List<EpisodeEntity>)
 
 sealed class ShowDetailEvent {
     data class Banner(val message: String) : ShowDetailEvent()
@@ -42,6 +43,9 @@ class ShowDetailViewModel @Inject constructor(
 
     private val showId: Long = savedStateHandle.toRoute<Destination.ShowDetail>().showId
 
+    /** `null` means "follow the show's current season" (default); set once the user browses away. */
+    private val _selectedSeason = MutableStateFlow<Int?>(null)
+
     /**
      * Room's Flow is already the "authoritative replace" half of the §7.3 optimistic pattern:
      * the direct episode-watched flip commits before any TMDB advance/archive network call, so
@@ -54,8 +58,11 @@ class ShowDetailViewModel @Inject constructor(
             if (show == null) {
                 flowOf(UiState.FatalError("Show not found"))
             } else {
-                repository.observeEpisodes(showId, show.currentSeason).map { episodes ->
-                    UiState.Content(ShowDetailData(show, episodes)) as UiState<ShowDetailData>
+                _selectedSeason.flatMapLatest { selected ->
+                    val season = selected ?: show.currentSeason
+                    repository.observeEpisodes(showId, season).map { episodes ->
+                        UiState.Content(ShowDetailData(show, season, episodes)) as UiState<ShowDetailData>
+                    }
                 }
             }
         }
@@ -63,6 +70,9 @@ class ShowDetailViewModel @Inject constructor(
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
+
+    private val _isSeasonLoading = MutableStateFlow(false)
+    val isSeasonLoading: StateFlow<Boolean> = _isSeasonLoading
 
     private val _events = MutableSharedFlow<ShowDetailEvent>()
     val events: SharedFlow<ShowDetailEvent> = _events
@@ -72,19 +82,44 @@ class ShowDetailViewModel @Inject constructor(
     }
 
     fun toggle(episodeId: Long) {
+        viewModelScope.launch { emitToggleEvents(repository.toggleEpisodeWatched(episodeId)) }
+    }
+
+    fun setAllWatched(watched: Boolean) {
+        val season = (uiState.value as? UiState.Content)?.data?.viewedSeason ?: return
+        viewModelScope.launch { emitToggleEvents(repository.setAllEpisodesWatched(showId, season, watched)) }
+    }
+
+    fun previousSeason() = navigateSeason(-1)
+
+    fun nextSeason() = navigateSeason(1)
+
+    private fun navigateSeason(delta: Int) {
+        val data = (uiState.value as? UiState.Content)?.data ?: return
+        val target = data.viewedSeason + delta
+        if (target < 1 || target > data.show.totalSeasons) return
         viewModelScope.launch {
-            when (val result = repository.toggleEpisodeWatched(episodeId)) {
-                is AppResult.Success -> {
-                    when (val event = result.value.event) {
-                        is ToggleEvent.Advanced ->
-                            _events.emit(ShowDetailEvent.Banner("Advanced to Season ${event.newSeasonNumber}"))
-                        is ToggleEvent.Archived ->
-                            _events.emit(ShowDetailEvent.Banner("Series complete — moved to Archive"))
-                        ToggleEvent.None -> Unit
-                    }
-                }
+            _isSeasonLoading.value = true
+            when (val result = repository.ensureSeasonLoaded(showId, target)) {
+                is AppResult.Success -> _selectedSeason.value = target
                 is AppResult.Error -> _events.emit(ShowDetailEvent.Error(result.error.toUserMessage()))
             }
+            _isSeasonLoading.value = false
+        }
+    }
+
+    private suspend fun emitToggleEvents(result: AppResult<ToggleOutcome>) {
+        when (result) {
+            is AppResult.Success -> {
+                when (val event = result.value.event) {
+                    is ToggleEvent.Advanced ->
+                        _events.emit(ShowDetailEvent.Banner("Advanced to Season ${event.newSeasonNumber}"))
+                    is ToggleEvent.Archived ->
+                        _events.emit(ShowDetailEvent.Banner("Series complete — moved to Archive"))
+                    ToggleEvent.None -> Unit
+                }
+            }
+            is AppResult.Error -> _events.emit(ShowDetailEvent.Error(result.error.toUserMessage()))
         }
     }
 
@@ -94,9 +129,11 @@ class ShowDetailViewModel @Inject constructor(
 
     private suspend fun refreshInternal(force: Boolean) {
         _isRefreshing.value = true
-        val result = repository.refreshCurrentSeason(showId, force)
-        if (result is AppResult.Error) {
-            _events.emit(ShowDetailEvent.Error(result.error.toUserMessage()))
+        when (val result = repository.refreshCurrentSeason(showId, force)) {
+            is AppResult.Success -> result.value.newSeasonAvailable?.let { newSeason ->
+                _events.emit(ShowDetailEvent.Banner("New season available: Season $newSeason"))
+            }
+            is AppResult.Error -> _events.emit(ShowDetailEvent.Error(result.error.toUserMessage()))
         }
         _isRefreshing.value = false
     }

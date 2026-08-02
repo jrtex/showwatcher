@@ -8,6 +8,7 @@ import com.example.showwatcher.data.local.ShowStatus
 import com.example.showwatcher.data.local.ShowWithNextEpisode
 import com.example.showwatcher.data.repository.ShowRepository
 import com.example.showwatcher.data.today
+import com.example.showwatcher.ui.common.ShowListKind
 import com.example.showwatcher.ui.common.UiState
 import com.example.showwatcher.ui.common.sortedByShowOrder
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,6 +29,7 @@ class ArchiveViewModel @Inject constructor(
         combine(repository.observeShowsByStatus(ShowStatus.ARCHIVED), settingsRepository.sortOrder) { shows, order ->
             shows.sortedByShowOrder(
                 order,
+                kind = ShowListKind.ACTIVE_OR_ARCHIVE,
                 today = clock.today(),
                 title = { it.show.title },
                 nextEpisodeAirDate = { it.nextEpisodeAirDate },

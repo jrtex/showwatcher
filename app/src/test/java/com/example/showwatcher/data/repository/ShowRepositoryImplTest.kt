@@ -178,6 +178,104 @@ class ShowRepositoryImplTest {
         assertEquals(0, tmdb.getShowDetailsCallCount)
     }
 
+    // ---- setAllEpisodesWatched ("Select all") ----
+
+    @Test
+    fun `select all marks every episode watched and advances when a next season exists`() = runTest {
+        val showId = seedShow(currentSeason = 1, totalSeasons = 1)
+        seedEpisode(showId, season = 1, episodeNumber = 1, watched = false)
+        seedEpisode(showId, season = 1, episodeNumber = 2, watched = false)
+
+        tmdb.showDetailsResult = AppResult.Success(
+            TmdbShowDetails(tmdbId = 42L, title = "Test Show", posterPath = null, firstAirYear = 2020, trackedSeasonNumbers = listOf(1, 2)),
+        )
+        tmdb.seasonEpisodesResults[2] = AppResult.Success(
+            TmdbSeasonEpisodes(
+                seasonNumber = 2,
+                episodes = listOf(TmdbEpisode(episodeNumber = 1, name = "S2E1", airDate = "2021-01-01", tmdbEpisodeId = 201L)),
+            ),
+        )
+
+        val result = repository.setAllEpisodesWatched(showId, seasonNumber = 1, watched = true) as AppResult.Success
+        assertEquals(ToggleEvent.Advanced(2), result.value.event)
+        val updatedShow = showDao.getById(showId)!!
+        assertEquals(2, updatedShow.currentSeason)
+        assertTrue(episodeDao.getForSeason(showId, 1).all { it.watched })
+    }
+
+    @Test
+    fun `select all archives the show when the season completed is the last one`() = runTest {
+        val showId = seedShow(currentSeason = 3, totalSeasons = 3)
+        seedEpisode(showId, season = 3, episodeNumber = 1, watched = false)
+        seedEpisode(showId, season = 3, episodeNumber = 2, watched = false)
+
+        tmdb.showDetailsResult = AppResult.Success(
+            TmdbShowDetails(tmdbId = 42L, title = "Test Show", posterPath = null, firstAirYear = 2020, trackedSeasonNumbers = listOf(1, 2, 3)),
+        )
+
+        val result = repository.setAllEpisodesWatched(showId, seasonNumber = 3, watched = true) as AppResult.Success
+        assertEquals(ToggleEvent.Archived(3), result.value.event)
+        val updatedShow = showDao.getById(showId)!!
+        assertEquals(ShowStatus.ARCHIVED, updatedShow.status)
+        assertTrue(episodeDao.getForSeason(showId, 3).all { it.watched })
+    }
+
+    @Test
+    fun `unselecting all never triggers advance or archive`() = runTest {
+        val showId = seedShow(currentSeason = 1, totalSeasons = 1)
+        seedEpisode(showId, season = 1, episodeNumber = 1, watched = true)
+        seedEpisode(showId, season = 1, episodeNumber = 2, watched = true)
+
+        val result = repository.setAllEpisodesWatched(showId, seasonNumber = 1, watched = false) as AppResult.Success
+        assertEquals(ToggleEvent.None, result.value.event)
+        assertEquals(0, tmdb.getShowDetailsCallCount)
+        assertTrue(episodeDao.getForSeason(showId, 1).none { it.watched })
+    }
+
+    @Test
+    fun `select all on a browsed non-current season marks watched but never advances or archives`() = runTest {
+        val showId = seedShow(currentSeason = 2, totalSeasons = 2)
+        seedEpisode(showId, season = 1, episodeNumber = 1, watched = false)
+        seedEpisode(showId, season = 1, episodeNumber = 2, watched = false)
+        seedEpisode(showId, season = 2, episodeNumber = 1, watched = false)
+
+        val result = repository.setAllEpisodesWatched(showId, seasonNumber = 1, watched = true) as AppResult.Success
+        assertEquals(ToggleEvent.None, result.value.event)
+        assertEquals(0, tmdb.getShowDetailsCallCount)
+        assertTrue(episodeDao.getForSeason(showId, 1).all { it.watched })
+        assertEquals(2, showDao.getById(showId)!!.currentSeason)
+    }
+
+    // ---- ensureSeasonLoaded (season browsing) ----
+
+    @Test
+    fun `ensureSeasonLoaded fetches and caches a season with no local episodes`() = runTest {
+        val showId = seedShow(currentSeason = 2, totalSeasons = 2, tmdbId = 42L)
+        tmdb.seasonEpisodesResults[1] = AppResult.Success(
+            TmdbSeasonEpisodes(
+                seasonNumber = 1,
+                episodes = listOf(TmdbEpisode(episodeNumber = 1, name = "S1E1", airDate = "2019-01-01", tmdbEpisodeId = 101L)),
+            ),
+        )
+
+        val result = repository.ensureSeasonLoaded(showId, 1)
+        assertTrue(result is AppResult.Success)
+        assertEquals(1, tmdb.getSeasonEpisodesCallCount)
+        val episodes = episodeDao.getForSeason(showId, 1)
+        assertEquals(1, episodes.size)
+        assertFalse(episodes.first().watched)
+    }
+
+    @Test
+    fun `ensureSeasonLoaded makes no network call when the season is already cached`() = runTest {
+        val showId = seedShow(currentSeason = 1, totalSeasons = 1)
+        seedEpisode(showId, season = 1, episodeNumber = 1)
+
+        val result = repository.ensureSeasonLoaded(showId, 1)
+        assertTrue(result is AppResult.Success)
+        assertEquals(0, tmdb.getSeasonEpisodesCallCount)
+    }
+
     @Test
     fun `reactivate only flips status and clears archivedAt`() = runTest {
         val showId = seedShow(currentSeason = 2, totalSeasons = 3)
@@ -225,6 +323,9 @@ class ShowRepositoryImplTest {
         val episodeId = seedEpisode(showId, season = 1, episodeNumber = 1, watched = true, name = "Old name", airDate = "2020-01-01")
         seasonCacheDao.upsertMeta(SeasonCacheMetaEntity(showId, 1, fetchedAt = clock.nowMillis(), episodeCount = 1))
 
+        tmdb.showDetailsResult = AppResult.Success(
+            TmdbShowDetails(tmdbId = 42L, title = "Test Show", posterPath = null, firstAirYear = 2020, trackedSeasonNumbers = listOf(1)),
+        )
         tmdb.seasonEpisodesResults[1] = AppResult.Success(
             TmdbSeasonEpisodes(
                 seasonNumber = 1,
@@ -251,6 +352,7 @@ class ShowRepositoryImplTest {
 
         repository.refreshCurrentSeason(showId, force = false)
         assertEquals(0, tmdb.getSeasonEpisodesCallCount)
+        assertEquals(0, tmdb.getShowDetailsCallCount)
     }
 
     @Test
@@ -258,6 +360,9 @@ class ShowRepositoryImplTest {
         val showId = seedShow(currentSeason = 1, totalSeasons = 1)
         seedEpisode(showId, season = 1, episodeNumber = 1)
         seasonCacheDao.upsertMeta(SeasonCacheMetaEntity(showId, 1, fetchedAt = clock.nowMillis(), episodeCount = 1))
+        tmdb.showDetailsResult = AppResult.Success(
+            TmdbShowDetails(tmdbId = 42L, title = "Test Show", posterPath = null, firstAirYear = 2020, trackedSeasonNumbers = listOf(1)),
+        )
         tmdb.seasonEpisodesResults[1] = AppResult.Success(
             TmdbSeasonEpisodes(
                 seasonNumber = 1,
@@ -276,6 +381,9 @@ class ShowRepositoryImplTest {
     fun `refresh with no cache meta is treated as stale`() = runTest {
         val showId = seedShow(currentSeason = 1, totalSeasons = 1)
         seedEpisode(showId, season = 1, episodeNumber = 1)
+        tmdb.showDetailsResult = AppResult.Success(
+            TmdbShowDetails(tmdbId = 42L, title = "Test Show", posterPath = null, firstAirYear = 2020, trackedSeasonNumbers = listOf(1)),
+        )
         tmdb.seasonEpisodesResults[1] = AppResult.Success(
             TmdbSeasonEpisodes(
                 seasonNumber = 1,
@@ -292,6 +400,9 @@ class ShowRepositoryImplTest {
         val showId = seedShow(currentSeason = 1, totalSeasons = 1)
         seedEpisode(showId, season = 1, episodeNumber = 1)
         seasonCacheDao.upsertMeta(SeasonCacheMetaEntity(showId, 1, fetchedAt = clock.nowMillis(), episodeCount = 1))
+        tmdb.showDetailsResult = AppResult.Success(
+            TmdbShowDetails(tmdbId = 42L, title = "Test Show", posterPath = null, firstAirYear = 2020, trackedSeasonNumbers = listOf(1)),
+        )
         tmdb.seasonEpisodesResults[1] = AppResult.Success(
             TmdbSeasonEpisodes(
                 seasonNumber = 1,
@@ -308,6 +419,9 @@ class ShowRepositoryImplTest {
         val showId = seedShow(currentSeason = 1, totalSeasons = 1)
         seedEpisode(showId, season = 1, episodeNumber = 1, watched = true)
         seasonCacheDao.upsertMeta(SeasonCacheMetaEntity(showId, 1, fetchedAt = clock.nowMillis(), episodeCount = 1))
+        tmdb.showDetailsResult = AppResult.Success(
+            TmdbShowDetails(tmdbId = 42L, title = "Test Show", posterPath = null, firstAirYear = 2020, trackedSeasonNumbers = listOf(1)),
+        )
         tmdb.seasonEpisodesResults[1] = AppResult.Success(
             TmdbSeasonEpisodes(
                 seasonNumber = 1,
@@ -324,6 +438,68 @@ class ShowRepositoryImplTest {
         assertEquals(2, episodes.size)
         assertTrue(episodes.first { it.episodeNumber == 1 }.watched)
         assertFalse(episodes.first { it.episodeNumber == 2 }.watched)
+    }
+
+    @Test
+    fun `refresh updates show title, poster and total seasons from TMDB`() = runTest {
+        val showId = seedShow(currentSeason = 1, totalSeasons = 1)
+        seedEpisode(showId, season = 1, episodeNumber = 1)
+        seasonCacheDao.upsertMeta(SeasonCacheMetaEntity(showId, 1, fetchedAt = clock.nowMillis(), episodeCount = 1))
+        tmdb.showDetailsResult = AppResult.Success(
+            TmdbShowDetails(tmdbId = 42L, title = "New Title", posterPath = "/new.jpg", firstAirYear = 2020, trackedSeasonNumbers = listOf(1)),
+        )
+        tmdb.seasonEpisodesResults[1] = AppResult.Success(
+            TmdbSeasonEpisodes(
+                seasonNumber = 1,
+                episodes = listOf(TmdbEpisode(episodeNumber = 1, name = "E1", airDate = null, tmdbEpisodeId = 1L)),
+            ),
+        )
+
+        repository.refreshCurrentSeason(showId, force = true)
+
+        val show = showDao.getById(showId)!!
+        assertEquals("New Title", show.title)
+        assertEquals("/new.jpg", show.posterPath)
+        assertEquals(1, show.totalSeasons)
+    }
+
+    @Test
+    fun `refresh reports the highest newly discovered season`() = runTest {
+        val showId = seedShow(currentSeason = 1, totalSeasons = 1)
+        seedEpisode(showId, season = 1, episodeNumber = 1)
+        seasonCacheDao.upsertMeta(SeasonCacheMetaEntity(showId, 1, fetchedAt = clock.nowMillis(), episodeCount = 1))
+        tmdb.showDetailsResult = AppResult.Success(
+            TmdbShowDetails(tmdbId = 42L, title = "Test Show", posterPath = null, firstAirYear = 2020, trackedSeasonNumbers = listOf(1, 2, 3)),
+        )
+        tmdb.seasonEpisodesResults[1] = AppResult.Success(
+            TmdbSeasonEpisodes(
+                seasonNumber = 1,
+                episodes = listOf(TmdbEpisode(episodeNumber = 1, name = "E1", airDate = null, tmdbEpisodeId = 1L)),
+            ),
+        )
+
+        val result = repository.refreshCurrentSeason(showId, force = true) as AppResult.Success
+        assertEquals(3, result.value.newSeasonAvailable)
+        assertEquals(3, showDao.getById(showId)!!.totalSeasons)
+    }
+
+    @Test
+    fun `refresh reports no new season when total seasons is unchanged`() = runTest {
+        val showId = seedShow(currentSeason = 1, totalSeasons = 1)
+        seedEpisode(showId, season = 1, episodeNumber = 1)
+        seasonCacheDao.upsertMeta(SeasonCacheMetaEntity(showId, 1, fetchedAt = clock.nowMillis(), episodeCount = 1))
+        tmdb.showDetailsResult = AppResult.Success(
+            TmdbShowDetails(tmdbId = 42L, title = "Test Show", posterPath = null, firstAirYear = 2020, trackedSeasonNumbers = listOf(1)),
+        )
+        tmdb.seasonEpisodesResults[1] = AppResult.Success(
+            TmdbSeasonEpisodes(
+                seasonNumber = 1,
+                episodes = listOf(TmdbEpisode(episodeNumber = 1, name = "E1", airDate = null, tmdbEpisodeId = 1L)),
+            ),
+        )
+
+        val result = repository.refreshCurrentSeason(showId, force = true) as AppResult.Success
+        assertNull(result.value.newSeasonAvailable)
     }
 
     // ---- getShowSeasons (Add Show season picker) ----

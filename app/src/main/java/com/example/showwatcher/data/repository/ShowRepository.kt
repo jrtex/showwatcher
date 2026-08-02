@@ -34,7 +34,24 @@ interface ShowRepository {
     /** The §4.2 state machine: direct toggle, guarded season-completion evaluation, advance/archive. */
     suspend fun toggleEpisodeWatched(episodeId: Long): AppResult<ToggleOutcome>
 
-    /** §4.4: staleness-gated (or forced) re-fetch that never clears watched/watchedAt. */
+    /**
+     * Bulk-sets every episode in the given season. Marking all watched only runs the TMDB
+     * advance/archive evaluation from [toggleEpisodeWatched] when [seasonNumber] is the show's
+     * current season; unmarking, or acting on any other (browsed) season, never does.
+     */
+    suspend fun setAllEpisodesWatched(showId: Long, seasonNumber: Int, watched: Boolean): AppResult<ToggleOutcome>
+
+    /**
+     * Guarantees a season's episodes exist locally, fetching and caching them from TMDB the
+     * first time a season is browsed to. No-ops (no network call) if already cached.
+     */
+    suspend fun ensureSeasonLoaded(showId: Long, seasonNumber: Int): AppResult<Unit>
+
+    /**
+     * §4.4: staleness-gated (or forced) re-fetch that never clears watched/watchedAt. Also
+     * refreshes show-level metadata (title/posterPath/totalSeasons) and reports the highest
+     * newly-discovered season number via [RefreshOutcome.newSeasonAvailable], if any.
+     */
     suspend fun refreshCurrentSeason(showId: Long, force: Boolean = false): AppResult<RefreshOutcome>
 
     /** §4.5: no TMDB check, no currentSeason change. */

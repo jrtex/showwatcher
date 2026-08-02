@@ -20,4 +20,6 @@ data class ToggleOutcome(
 data class RefreshOutcome(
     val show: ShowEntity,
     val episodes: List<EpisodeEntity>,
+    /** Highest season number TMDB now reports that wasn't known before this refresh, or null. */
+    val newSeasonAvailable: Int? = null,
 )

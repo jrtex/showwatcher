@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -44,6 +45,7 @@ fun ShowDetailScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val isSeasonLoading by viewModel.isSeasonLoading.collectAsStateWithLifecycle()
     var banner by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -76,7 +78,7 @@ fun ShowDetailScreen(
         }
         is UiState.FatalError -> EmptyState(current.message, modifier = modifier)
         is UiState.Content -> {
-            val (show, episodes) = current.data
+            val (show, viewedSeason, episodes) = current.data
             val isArchived = show.status == ShowStatus.ARCHIVED
             val watchedCount = episodes.count { it.watched }
 
@@ -93,7 +95,20 @@ fun ShowDetailScreen(
                     )
                     Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
                         Text(show.title, style = MaterialTheme.typography.titleLarge)
-                        Text("Season ${show.currentSeason} — $watchedCount/${episodes.size}")
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = { viewModel.previousSeason() },
+                                enabled = !isSeasonLoading && viewedSeason > 1,
+                            ) { Text("‹") }
+                            Text(
+                                if (isSeasonLoading) "Loading…" else "Season $viewedSeason — $watchedCount/${episodes.size}",
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(
+                                onClick = { viewModel.nextSeason() },
+                                enabled = !isSeasonLoading && viewedSeason < show.totalSeasons,
+                            ) { Text("›") }
+                        }
                         WatchProgressBar(watched = watchedCount, total = episodes.size)
                         Row(modifier = Modifier.padding(top = 8.dp)) {
                             if (!isArchived) {
@@ -108,6 +123,20 @@ fun ShowDetailScreen(
                                 Text("Remove show")
                             }
                         }
+                    }
+                }
+
+                if (episodes.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = watchedCount == episodes.size,
+                            onCheckedChange = { checked -> viewModel.setAllWatched(checked) },
+                            enabled = !isArchived,
+                        )
+                        Text("Select all")
                     }
                 }
 
