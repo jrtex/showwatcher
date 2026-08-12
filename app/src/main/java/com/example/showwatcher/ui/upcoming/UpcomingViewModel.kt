@@ -31,7 +31,7 @@ class UpcomingViewModel @Inject constructor(
                 kind = ShowListKind.UPCOMING,
                 today = clock.today(),
                 title = { it.show.title },
-                nextEpisodeAirDate = { it.nextEpisodeAirDate },
+                sortDate = { it.nextEpisodeAirDate },
             )
         }
             .map<List<ShowUpcoming>, UiState<List<ShowUpcoming>>> { UiState.Content(it) }

@@ -31,7 +31,7 @@ class DashboardViewModel @Inject constructor(
                 kind = ShowListKind.ACTIVE_OR_ARCHIVE,
                 today = clock.today(),
                 title = { it.show.title },
-                nextEpisodeAirDate = { it.nextEpisodeAirDate },
+                sortDate = { it.nextEpisodeAirDate },
             )
         }
             .map<List<ShowWithProgress>, UiState<List<ShowWithProgress>>> { UiState.Content(it) }

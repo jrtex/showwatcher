@@ -13,7 +13,7 @@ import com.example.showwatcher.data.local.ShowDao
 import com.example.showwatcher.data.local.ShowEntity
 import com.example.showwatcher.data.local.ShowStatus
 import com.example.showwatcher.data.local.ShowUpcoming
-import com.example.showwatcher.data.local.ShowWithNextEpisode
+import com.example.showwatcher.data.local.ShowWithLastWatchedEpisode
 import com.example.showwatcher.data.local.ShowWithProgress
 import com.example.showwatcher.data.local.TransactionRunner
 import com.example.showwatcher.data.remote.TmdbEpisode
@@ -33,8 +33,8 @@ class ShowRepositoryImpl @Inject constructor(
     private val clock: Clock,
 ) : ShowRepository {
 
-    override fun observeShowsByStatus(status: String): Flow<List<ShowWithNextEpisode>> =
-        showDao.observeByStatusWithNextEpisode(status)
+    override fun observeShowsByLastWatchedEpisode(status: String): Flow<List<ShowWithLastWatchedEpisode>> =
+        showDao.observeByStatusWithLastWatchedEpisode(status)
 
     override fun observeActiveShowsWithProgress(): Flow<List<ShowWithProgress>> =
         showDao.observeActiveWithProgress(today = clock.today())

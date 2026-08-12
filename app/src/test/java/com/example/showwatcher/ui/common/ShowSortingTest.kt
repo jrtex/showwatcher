@@ -4,7 +4,7 @@ import com.example.showwatcher.data.SortOrder
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-private data class Show(val title: String, val nextEpisodeAirDate: String?)
+private data class Show(val title: String, val sortDate: String?)
 
 private const val TODAY = "2026-07-25"
 
@@ -19,7 +19,7 @@ class ShowSortingTest {
     )
 
     private fun List<Show>.sortByOrder(order: SortOrder, kind: ShowListKind): List<String> =
-        sortedByShowOrder(order, kind, today = TODAY, title = { it.title }, nextEpisodeAirDate = { it.nextEpisodeAirDate })
+        sortedByShowOrder(order, kind, today = TODAY, title = { it.title }, sortDate = { it.sortDate })
             .map { it.title }
 
     @Test
@@ -66,6 +66,35 @@ class ShowSortingTest {
         assertEquals(
             listOf("AiredEarly", "AiredLate", "AiredToday", "NoDate", "Unaired"),
             shows.sortByOrder(SortOrder.ALPHABETICAL_ASC, ShowListKind.ACTIVE_OR_ARCHIVE),
+        )
+    }
+
+    @Test
+    fun `no-date shows tie-break alphabetically instead of falling back to input order`() {
+        val tied = listOf(
+            Show("Zebra", null),
+            Show("Apple", null),
+            Show("Mango", null),
+        )
+        assertEquals(
+            listOf("Apple", "Mango", "Zebra"),
+            tied.sortByOrder(SortOrder.NEXT_EPISODE_CLOSEST, ShowListKind.ACTIVE_OR_ARCHIVE),
+        )
+        assertEquals(
+            listOf("Apple", "Mango", "Zebra"),
+            tied.sortByOrder(SortOrder.NEXT_EPISODE_CLOSEST, ShowListKind.UPCOMING),
+        )
+    }
+
+    @Test
+    fun `same-date shows tie-break alphabetically`() {
+        val tied = listOf(
+            Show("Zebra", "2026-07-20"),
+            Show("Apple", "2026-07-20"),
+        )
+        assertEquals(
+            listOf("Apple", "Zebra"),
+            tied.sortByOrder(SortOrder.NEXT_EPISODE_CLOSEST, ShowListKind.ACTIVE_OR_ARCHIVE),
         )
     }
 }

@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.showwatcher.data.Clock
 import com.example.showwatcher.data.SettingsRepository
 import com.example.showwatcher.data.local.ShowStatus
-import com.example.showwatcher.data.local.ShowWithNextEpisode
+import com.example.showwatcher.data.local.ShowWithLastWatchedEpisode
 import com.example.showwatcher.data.repository.ShowRepository
 import com.example.showwatcher.data.today
 import com.example.showwatcher.ui.common.ShowListKind
@@ -25,16 +25,16 @@ class ArchiveViewModel @Inject constructor(
     settingsRepository: SettingsRepository,
     clock: Clock,
 ) : ViewModel() {
-    val uiState: StateFlow<UiState<List<ShowWithNextEpisode>>> =
-        combine(repository.observeShowsByStatus(ShowStatus.ARCHIVED), settingsRepository.sortOrder) { shows, order ->
+    val uiState: StateFlow<UiState<List<ShowWithLastWatchedEpisode>>> =
+        combine(repository.observeShowsByLastWatchedEpisode(ShowStatus.ARCHIVED), settingsRepository.sortOrder) { shows, order ->
             shows.sortedByShowOrder(
                 order,
                 kind = ShowListKind.ACTIVE_OR_ARCHIVE,
                 today = clock.today(),
                 title = { it.show.title },
-                nextEpisodeAirDate = { it.nextEpisodeAirDate },
+                sortDate = { it.lastWatchedEpisodeAirDate },
             )
         }
-            .map<List<ShowWithNextEpisode>, UiState<List<ShowWithNextEpisode>>> { UiState.Content(it) }
+            .map<List<ShowWithLastWatchedEpisode>, UiState<List<ShowWithLastWatchedEpisode>>> { UiState.Content(it) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 }

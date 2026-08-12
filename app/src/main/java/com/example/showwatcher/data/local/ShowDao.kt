@@ -20,10 +20,10 @@ data class ShowUpcoming(
     val nextEpisodeAirDate: String?,
 )
 
-/** A show plus the air date of its earliest unwatched episode across all seasons, for sort purposes. */
-data class ShowWithNextEpisode(
+/** A show plus the air date of its most recently watched episode, for Archive sort purposes. */
+data class ShowWithLastWatchedEpisode(
     @Embedded val show: ShowEntity,
-    val nextEpisodeAirDate: String?,
+    val lastWatchedEpisodeAirDate: String?,
 )
 
 @Dao
@@ -37,19 +37,20 @@ interface ShowDao {
     @Query("SELECT * FROM shows WHERE tmdbId = :tmdbId")
     suspend fun getByTmdbId(tmdbId: Long): ShowEntity?
 
-    // The nextEpisodeAirDate subquery deliberately ignores currentSeason (unlike firstEpisodeAirDate
-    // below) since it's used for "next episode to watch" sorting, which can span past a season
-    // boundary if the user hasn't caught up.
+    // The lastWatchedEpisodeAirDate subquery takes the air date of the highest-numbered watched
+    // episode (by season then episode number) — the most recently watched episode in viewing
+    // order, used for Archive sort purposes instead of "next episode to watch" (which is null for
+    // nearly all archived/fully-watched shows).
     @Query(
         """
         SELECT s.*,
-        (SELECT airDate FROM episodes e WHERE e.showId = s.id AND e.watched = 0
-            ORDER BY e.seasonNumber ASC, e.episodeNumber ASC LIMIT 1) AS nextEpisodeAirDate
+        (SELECT airDate FROM episodes e WHERE e.showId = s.id AND e.watched = 1
+            ORDER BY e.seasonNumber DESC, e.episodeNumber DESC LIMIT 1) AS lastWatchedEpisodeAirDate
         FROM shows s WHERE s.status = :status
         ORDER BY s.updatedAt DESC
         """,
     )
-    fun observeByStatusWithNextEpisode(status: String): Flow<List<ShowWithNextEpisode>>
+    fun observeByStatusWithLastWatchedEpisode(status: String): Flow<List<ShowWithLastWatchedEpisode>>
 
     // Air dates are stored as ISO "YYYY-MM-DD" text, so lexicographic comparison against
     // `:today` (also "YYYY-MM-DD") is a correct chronological comparison without needing
