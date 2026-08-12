@@ -502,6 +502,85 @@ class ShowRepositoryImplTest {
         assertNull(result.value.newSeasonAvailable)
     }
 
+    // ---- refreshArchivedShow (Archive Detail "Refresh" — check for a renewal) ----
+
+    @Test
+    fun `refreshArchivedShow reactivates onto the next season when TMDB has one past currentSeason`() = runTest {
+        val showId = seedShow(currentSeason = 3, totalSeasons = 3)
+        showDao.archive(showId, archivedAt = 555L, updatedAt = 555L)
+        seedEpisode(showId, season = 3, episodeNumber = 1, watched = true)
+
+        tmdb.showDetailsResult = AppResult.Success(
+            TmdbShowDetails(tmdbId = 42L, title = "Test Show", posterPath = null, firstAirYear = 2020, trackedSeasonNumbers = listOf(1, 2, 3, 4)),
+        )
+        tmdb.seasonEpisodesResults[4] = AppResult.Success(
+            TmdbSeasonEpisodes(
+                seasonNumber = 4,
+                episodes = listOf(TmdbEpisode(episodeNumber = 1, name = "S4E1", airDate = "2026-01-01", tmdbEpisodeId = 401L)),
+            ),
+        )
+
+        val result = repository.refreshArchivedShow(showId) as AppResult.Success
+        assertEquals(4, result.value.newSeasonNumber)
+
+        val show = showDao.getById(showId)!!
+        assertEquals(ShowStatus.ACTIVE, show.status)
+        assertNull(show.archivedAt)
+        assertEquals(4, show.currentSeason)
+        assertEquals(4, show.totalSeasons)
+
+        val newSeasonEpisodes = episodeDao.getForSeason(showId, 4)
+        assertEquals(1, newSeasonEpisodes.size)
+        assertFalse(newSeasonEpisodes.first().watched)
+    }
+
+    @Test
+    fun `refreshArchivedShow leaves the show archived when TMDB has nothing past currentSeason`() = runTest {
+        val showId = seedShow(currentSeason = 3, totalSeasons = 3)
+        showDao.archive(showId, archivedAt = 555L, updatedAt = 555L)
+
+        tmdb.showDetailsResult = AppResult.Success(
+            TmdbShowDetails(tmdbId = 42L, title = "Test Show", posterPath = null, firstAirYear = 2020, trackedSeasonNumbers = listOf(1, 2, 3)),
+        )
+
+        val result = repository.refreshArchivedShow(showId) as AppResult.Success
+        assertNull(result.value.newSeasonNumber)
+        assertEquals(0, tmdb.getSeasonEpisodesCallCount)
+
+        val show = showDao.getById(showId)!!
+        assertEquals(ShowStatus.ARCHIVED, show.status)
+        assertEquals(555L, show.archivedAt)
+        assertEquals(3, show.currentSeason)
+    }
+
+    @Test
+    fun `refreshArchivedShow updates title and poster even when nothing new is found`() = runTest {
+        val showId = seedShow(currentSeason = 1, totalSeasons = 1)
+        showDao.archive(showId, archivedAt = 555L, updatedAt = 555L)
+
+        tmdb.showDetailsResult = AppResult.Success(
+            TmdbShowDetails(tmdbId = 42L, title = "New Title", posterPath = "/new.jpg", firstAirYear = 2020, trackedSeasonNumbers = listOf(1)),
+        )
+
+        repository.refreshArchivedShow(showId)
+
+        val show = showDao.getById(showId)!!
+        assertEquals("New Title", show.title)
+        assertEquals("/new.jpg", show.posterPath)
+        assertEquals(ShowStatus.ARCHIVED, show.status)
+    }
+
+    @Test
+    fun `refreshArchivedShow propagates TMDB errors without changing show state`() = runTest {
+        val showId = seedShow(currentSeason = 1, totalSeasons = 1)
+        showDao.archive(showId, archivedAt = 555L, updatedAt = 555L)
+        tmdb.showDetailsResult = AppResult.Error(AppError.Tmdb("Not found", 404))
+
+        val result = repository.refreshArchivedShow(showId)
+        assertTrue(result is AppResult.Error)
+        assertEquals(ShowStatus.ARCHIVED, showDao.getById(showId)!!.status)
+    }
+
     // ---- getShowSeasons (Add Show season picker) ----
 
     @Test

@@ -57,6 +57,15 @@ interface ShowRepository {
     /** §4.5: no TMDB check, no currentSeason change. */
     suspend fun reactivateShow(showId: Long)
 
+    /**
+     * Post-implementation feature (the "v2 nicety" flagged in ANDROID_HANDOFF.md §4.5): checks
+     * TMDB for a season past the archived show's frozen `currentSeason` — i.e. a renewal. If one
+     * exists, reactivates the show onto that season (status -> active, `archivedAt` cleared) and
+     * caches its episodes, same as a normal season advance. If TMDB has nothing new, only
+     * show-level metadata (title/poster/totalSeasons) is refreshed and the show stays archived.
+     */
+    suspend fun refreshArchivedShow(showId: Long): AppResult<ArchiveRefreshOutcome>
+
     /** §4.6: cascades to episodes and season_cache_meta via Room FKs. */
     suspend fun deleteShow(showId: Long)
 }

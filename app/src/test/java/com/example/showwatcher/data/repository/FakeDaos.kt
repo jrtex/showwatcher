@@ -59,6 +59,23 @@ class FakeShowDao : ShowDao {
         shows[showId] = existing.copy(status = status, archivedAt = null, updatedAt = updatedAt)
     }
 
+    override suspend fun reactivateWithSeason(
+        showId: Long,
+        currentSeason: Int,
+        totalSeasons: Int,
+        updatedAt: Long,
+        status: String,
+    ) {
+        val existing = shows.getValue(showId)
+        shows[showId] = existing.copy(
+            status = status,
+            archivedAt = null,
+            currentSeason = currentSeason,
+            totalSeasons = totalSeasons,
+            updatedAt = updatedAt,
+        )
+    }
+
     override suspend fun deleteById(showId: Long) {
         shows.remove(showId)
     }

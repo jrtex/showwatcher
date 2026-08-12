@@ -4,10 +4,12 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.example.showwatcher.data.AppResult
 import com.example.showwatcher.data.local.EpisodeEntity
 import com.example.showwatcher.data.local.ShowEntity
 import com.example.showwatcher.data.repository.ShowRepository
 import com.example.showwatcher.ui.common.UiState
+import com.example.showwatcher.ui.common.toUserMessage
 import com.example.showwatcher.ui.nav.Destination
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -21,6 +23,8 @@ data class ArchiveDetailData(val show: ShowEntity, val seasonNumbers: List<Int>)
 
 sealed class ArchiveDetailEvent {
     data class NavigateToShowDetail(val showId: Long) : ArchiveDetailEvent()
+    data class Banner(val message: String) : ArchiveDetailEvent()
+    data class Error(val message: String) : ArchiveDetailEvent()
 }
 
 @HiltViewModel
@@ -36,6 +40,9 @@ class ArchiveDetailViewModel @Inject constructor(
 
     private val _seasonEpisodes = MutableStateFlow<Map<Int, List<EpisodeEntity>>>(emptyMap())
     val seasonEpisodes: StateFlow<Map<Int, List<EpisodeEntity>>> = _seasonEpisodes
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing
 
     private val _events = MutableSharedFlow<ArchiveDetailEvent>()
     val events: SharedFlow<ArchiveDetailEvent> = _events
@@ -63,6 +70,31 @@ class ArchiveDetailViewModel @Inject constructor(
         viewModelScope.launch {
             repository.reactivateShow(showId)
             _events.emit(ArchiveDetailEvent.NavigateToShowDetail(showId))
+        }
+    }
+
+    /**
+     * Same place/shape as Show Detail's "Refresh" (ShowDetailViewModel.refresh): checks TMDB for
+     * a season released since this show archived. If one exists the show is reactivated onto it
+     * and we navigate into Show Detail, same as [reactivate] — from there it surfaces on the
+     * Upcoming or Active tab automatically per its new season's air date, same as any other active
+     * show. If TMDB has nothing new, the show stays archived and a banner says so.
+     */
+    fun refresh() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            when (val result = repository.refreshArchivedShow(showId)) {
+                is AppResult.Success -> {
+                    val newSeason = result.value.newSeasonNumber
+                    if (newSeason != null) {
+                        _events.emit(ArchiveDetailEvent.NavigateToShowDetail(showId))
+                    } else {
+                        _events.emit(ArchiveDetailEvent.Banner("No new seasons found"))
+                    }
+                }
+                is AppResult.Error -> _events.emit(ArchiveDetailEvent.Error(result.error.toUserMessage()))
+            }
+            _isRefreshing.value = false
         }
     }
 }

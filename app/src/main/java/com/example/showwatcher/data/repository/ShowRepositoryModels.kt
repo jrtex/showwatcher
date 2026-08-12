@@ -23,3 +23,9 @@ data class RefreshOutcome(
     /** Highest season number TMDB now reports that wasn't known before this refresh, or null. */
     val newSeasonAvailable: Int? = null,
 )
+
+data class ArchiveRefreshOutcome(
+    val show: ShowEntity,
+    /** Season the archived show was reactivated into, or null if TMDB has nothing past `currentSeason`. */
+    val newSeasonNumber: Int? = null,
+)

@@ -10,14 +10,22 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun EventBanner(message: String, onDismiss: () -> Unit, modifier: Modifier = Modifier, isError: Boolean = false) {
+fun EventBanner(
+    message: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    shadowElevation: Dp = 0.dp,
+) {
     Surface(
         modifier = modifier.fillMaxWidth().padding(12.dp),
         color = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
         shape = MaterialTheme.shapes.medium,
+        shadowElevation = shadowElevation,
     ) {
         Row(
             modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),

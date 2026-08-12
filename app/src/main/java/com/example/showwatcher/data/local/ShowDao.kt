@@ -115,6 +115,19 @@ interface ShowDao {
     )
     suspend fun reactivate(showId: Long, status: String = ShowStatus.ACTIVE, updatedAt: Long)
 
+    /** Reactivate onto a specific (newly-discovered) season, e.g. a renewal found via archive refresh. */
+    @Query(
+        "UPDATE shows SET status = :status, archivedAt = NULL, currentSeason = :currentSeason, " +
+            "totalSeasons = :totalSeasons, updatedAt = :updatedAt WHERE id = :showId",
+    )
+    suspend fun reactivateWithSeason(
+        showId: Long,
+        currentSeason: Int,
+        totalSeasons: Int,
+        updatedAt: Long,
+        status: String = ShowStatus.ACTIVE,
+    )
+
     @Query("DELETE FROM shows WHERE id = :showId")
     suspend fun deleteById(showId: Long)
 }

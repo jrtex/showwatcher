@@ -36,6 +36,7 @@ import com.example.showwatcher.ui.components.EmptyState
 import com.example.showwatcher.ui.components.EventBanner
 import com.example.showwatcher.ui.components.PosterImage
 import com.example.showwatcher.ui.components.WatchProgressBar
+import kotlinx.coroutines.delay
 
 @Composable
 fun ShowDetailScreen(
@@ -56,6 +57,14 @@ fun ShowDetailScreen(
                 is ShowDetailEvent.Error -> banner = event.message to true
                 ShowDetailEvent.Deleted -> onDeleted()
             }
+        }
+    }
+
+    LaunchedEffect(banner) {
+        val current = banner
+        if (current != null && !current.second) {
+            delay(2500)
+            banner = null
         }
     }
 
@@ -82,72 +91,80 @@ fun ShowDetailScreen(
             val isArchived = show.status == ShowStatus.ARCHIVED
             val watchedCount = episodes.count { it.watched }
 
-            Column(modifier = modifier.fillMaxSize()) {
-                banner?.let { (message, isError) ->
-                    EventBanner(message = message, isError = isError, onDismiss = { banner = null })
-                }
-
-                Row(modifier = Modifier.padding(16.dp)) {
-                    PosterImage(
-                        title = show.title,
-                        posterPath = show.posterPath,
-                        modifier = Modifier.size(width = 100.dp, height = 150.dp),
-                    )
-                    Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
-                        Text(show.title, style = MaterialTheme.typography.titleLarge)
-                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
-                                onClick = { viewModel.previousSeason() },
-                                enabled = !isSeasonLoading && viewedSeason > 1,
-                            ) { Text("‹") }
-                            Text(
-                                if (isSeasonLoading) "Loading…" else "Season $viewedSeason — $watchedCount/${episodes.size}",
-                                modifier = Modifier.weight(1f),
-                            )
-                            IconButton(
-                                onClick = { viewModel.nextSeason() },
-                                enabled = !isSeasonLoading && viewedSeason < show.totalSeasons,
-                            ) { Text("›") }
-                        }
-                        WatchProgressBar(watched = watchedCount, total = episodes.size)
-                        Row(modifier = Modifier.padding(top = 8.dp)) {
-                            if (!isArchived) {
-                                OutlinedButton(onClick = { viewModel.refresh() }, enabled = !isRefreshing) {
-                                    Text(if (isRefreshing) "Refreshing…" else "Refresh")
+            Box(modifier = modifier.fillMaxSize()) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(modifier = Modifier.padding(16.dp)) {
+                        PosterImage(
+                            title = show.title,
+                            posterPath = show.posterPath,
+                            modifier = Modifier.size(width = 100.dp, height = 150.dp),
+                        )
+                        Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
+                            Text(show.title, style = MaterialTheme.typography.titleLarge)
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = { viewModel.previousSeason() },
+                                    enabled = !isSeasonLoading && viewedSeason > 1,
+                                ) { Text("‹") }
+                                Text(
+                                    if (isSeasonLoading) "Loading…" else "Season $viewedSeason — $watchedCount/${episodes.size}",
+                                    modifier = Modifier.weight(1f),
+                                )
+                                IconButton(
+                                    onClick = { viewModel.nextSeason() },
+                                    enabled = !isSeasonLoading && viewedSeason < show.totalSeasons,
+                                ) { Text("›") }
+                            }
+                            WatchProgressBar(watched = watchedCount, total = episodes.size)
+                            Row(modifier = Modifier.padding(top = 8.dp)) {
+                                if (!isArchived) {
+                                    OutlinedButton(onClick = { viewModel.refresh() }, enabled = !isRefreshing) {
+                                        Text(if (isRefreshing) "Refreshing…" else "Refresh")
+                                    }
+                                }
+                                Button(
+                                    onClick = { showDeleteConfirm = true },
+                                    modifier = Modifier.padding(start = 8.dp),
+                                ) {
+                                    Text("Remove show")
                                 }
                             }
-                            Button(
-                                onClick = { showDeleteConfirm = true },
-                                modifier = Modifier.padding(start = 8.dp),
-                            ) {
-                                Text("Remove show")
-                            }
+                        }
+                    }
+
+                    if (episodes.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = watchedCount == episodes.size,
+                                onCheckedChange = { checked -> viewModel.setAllWatched(checked) },
+                                enabled = !isArchived,
+                            )
+                            Text("Select all")
+                        }
+                    }
+
+                    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                        items(episodes, key = { it.id }) { episode ->
+                            EpisodeRow(
+                                episode = episode,
+                                enabled = !isArchived,
+                                onToggle = { viewModel.toggle(episode.id) },
+                            )
                         }
                     }
                 }
 
-                if (episodes.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(
-                            checked = watchedCount == episodes.size,
-                            onCheckedChange = { checked -> viewModel.setAllWatched(checked) },
-                            enabled = !isArchived,
-                        )
-                        Text("Select all")
-                    }
-                }
-
-                LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                    items(episodes, key = { it.id }) { episode ->
-                        EpisodeRow(
-                            episode = episode,
-                            enabled = !isArchived,
-                            onToggle = { viewModel.toggle(episode.id) },
-                        )
-                    }
+                banner?.let { (message, isError) ->
+                    EventBanner(
+                        message = message,
+                        isError = isError,
+                        onDismiss = { banner = null },
+                        modifier = Modifier.align(Alignment.TopCenter),
+                        shadowElevation = 4.dp,
+                    )
                 }
             }
         }

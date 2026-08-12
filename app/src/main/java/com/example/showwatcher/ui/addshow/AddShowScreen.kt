@@ -1,5 +1,6 @@
 package com.example.showwatcher.ui.addshow
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -23,6 +24,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -55,43 +57,51 @@ fun AddShowScreen(
         }
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = {
-                query = it
-                viewModel.onQueryChange(it)
-            },
-            label = { Text("Search TMDB") },
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-        )
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = {
+                    query = it
+                    viewModel.onQueryChange(it)
+                },
+                label = { Text("Search TMDB") },
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+            )
 
-        errorMessage?.let { message ->
-            EventBanner(message = message, onDismiss = { errorMessage = null }, isError = true)
-        }
-
-        when (val current = searchState) {
-            is UiState.Loading -> CircularProgressIndicator(modifier = Modifier.padding(16.dp))
-            is UiState.Content -> {
-                if (query.isNotBlank() && current.data.isEmpty()) {
-                    EmptyState("No results for \"$query\"")
-                } else {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(current.data, key = { it.tmdbId }) { result ->
-                            SearchResultRow(
-                                result = result,
-                                isAdding = addingTmdbId == result.tmdbId,
-                                addDisabled = addingTmdbId != null,
-                                fetchSeasons = { viewModel.fetchSeasons(result.tmdbId) },
-                                onConfirmAdd = { season ->
-                                    viewModel.addShow(result.tmdbId, season)
-                                },
-                            )
+            when (val current = searchState) {
+                is UiState.Loading -> CircularProgressIndicator(modifier = Modifier.padding(16.dp))
+                is UiState.Content -> {
+                    if (query.isNotBlank() && current.data.isEmpty()) {
+                        EmptyState("No results for \"$query\"")
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxSize()) {
+                            items(current.data, key = { it.tmdbId }) { result ->
+                                SearchResultRow(
+                                    result = result,
+                                    isAdding = addingTmdbId == result.tmdbId,
+                                    addDisabled = addingTmdbId != null,
+                                    fetchSeasons = { viewModel.fetchSeasons(result.tmdbId) },
+                                    onConfirmAdd = { season ->
+                                        viewModel.addShow(result.tmdbId, season)
+                                    },
+                                )
+                            }
                         }
                     }
                 }
+                is UiState.FatalError -> EmptyState(current.message)
             }
-            is UiState.FatalError -> EmptyState(current.message)
+        }
+
+        errorMessage?.let { message ->
+            EventBanner(
+                message = message,
+                onDismiss = { errorMessage = null },
+                isError = true,
+                modifier = Modifier.align(Alignment.TopCenter),
+                shadowElevation = 4.dp,
+            )
         }
     }
 }

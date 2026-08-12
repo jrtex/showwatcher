@@ -261,6 +261,45 @@ class ShowRepositoryImpl @Inject constructor(
         showDao.reactivate(showId = showId, updatedAt = clock.nowMillis())
     }
 
+    override suspend fun refreshArchivedShow(showId: Long): AppResult<ArchiveRefreshOutcome> {
+        val show = showDao.getById(showId)
+            ?: return AppResult.Error(AppError.Unknown(IllegalStateException("Show $showId not found")))
+
+        val detailsResult = tmdb.getShowDetails(show.tmdbId)
+        val details = when (detailsResult) {
+            is AppResult.Error -> return detailsResult
+            is AppResult.Success -> detailsResult.value
+        }
+
+        val now = clock.nowMillis()
+        val nextSeasonNumber = details.trackedSeasonNumbers.filter { it > show.currentSeason }.minOrNull()
+
+        if (nextSeasonNumber == null) {
+            transactionRunner.run {
+                showDao.updateMetadata(showId, details.title, details.posterPath, details.trackedSeasonNumbers.size, now)
+            }
+            return AppResult.Success(ArchiveRefreshOutcome(showDao.getById(showId)!!, newSeasonNumber = null))
+        }
+
+        val nextSeasonResult = tmdb.getSeasonEpisodes(show.tmdbId, nextSeasonNumber)
+        val nextSeason = when (nextSeasonResult) {
+            is AppResult.Error -> return nextSeasonResult
+            is AppResult.Success -> nextSeasonResult.value
+        }
+
+        transactionRunner.run {
+            showDao.reactivateWithSeason(
+                showId = showId,
+                currentSeason = nextSeasonNumber,
+                totalSeasons = details.trackedSeasonNumbers.size,
+                updatedAt = now,
+            )
+            upsertSeasonEpisodes(showId, nextSeasonNumber, nextSeason.episodes, now)
+        }
+
+        return AppResult.Success(ArchiveRefreshOutcome(showDao.getById(showId)!!, newSeasonNumber = nextSeasonNumber))
+    }
+
     override suspend fun deleteShow(showId: Long) {
         showDao.deleteById(showId)
     }
