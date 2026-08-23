@@ -81,6 +81,7 @@ class ArchiveDetailViewModel @Inject constructor(
      * show. If TMDB has nothing new, the show stays archived and a banner says so.
      */
     fun refresh() {
+        if (_isRefreshing.value) return
         viewModelScope.launch {
             _isRefreshing.value = true
             when (val result = repository.refreshArchivedShow(showId)) {

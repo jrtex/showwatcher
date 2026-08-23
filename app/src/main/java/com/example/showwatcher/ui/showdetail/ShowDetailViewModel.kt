@@ -128,6 +128,7 @@ class ShowDetailViewModel @Inject constructor(
     }
 
     private suspend fun refreshInternal(force: Boolean) {
+        if (_isRefreshing.value) return
         _isRefreshing.value = true
         when (val result = repository.refreshCurrentSeason(showId, force)) {
             is AppResult.Success -> result.value.newSeasonAvailable?.let { newSeason ->

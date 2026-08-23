@@ -14,6 +14,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -21,7 +22,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.showwatcher.ui.common.RefreshEvent
 import com.example.showwatcher.ui.common.UiState
+import com.example.showwatcher.ui.components.BannerHost
 import com.example.showwatcher.ui.components.EmptyState
 import com.example.showwatcher.ui.components.ShowCard
 import java.text.SimpleDateFormat
@@ -60,38 +63,55 @@ fun UpcomingScreen(
             )
         },
     ) { padding ->
-        when (val current = state) {
-            is UiState.Loading -> Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-            is UiState.Content -> {
-                if (current.data.isEmpty()) {
-                    EmptyState(
-                        "No upcoming shows — shows you add before their season premieres will appear here.",
-                        modifier = Modifier.padding(padding),
-                    )
-                } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        modifier = Modifier.padding(padding).fillMaxSize(),
-                        contentPadding = PaddingValues(12.dp),
-                    ) {
-                        items(current.data, key = { it.show.id }) { item ->
-                            ShowCard(
-                                title = item.show.title,
-                                posterPath = item.show.posterPath,
-                                onClick = { onShowClick(item.show.id) },
-                                modifier = Modifier.padding(6.dp),
-                                footer = {
-                                    Text("Season ${item.show.currentSeason}")
-                                    Text(formatAirDate(item.firstEpisodeAirDate))
-                                },
-                            )
+        val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.refreshAll() },
+            modifier = Modifier.padding(padding).fillMaxSize(),
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                when (val current = state) {
+                    is UiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                    is UiState.Content -> {
+                        if (current.data.isEmpty()) {
+                            EmptyState("No upcoming shows — shows you add before their season premieres will appear here.")
+                        } else {
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(2),
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(12.dp),
+                            ) {
+                                items(current.data, key = { it.show.id }) { item ->
+                                    ShowCard(
+                                        title = item.show.title,
+                                        posterPath = item.show.posterPath,
+                                        onClick = { onShowClick(item.show.id) },
+                                        modifier = Modifier.padding(6.dp),
+                                        footer = {
+                                            Text("Season ${item.show.currentSeason}")
+                                            Text(formatAirDate(item.firstEpisodeAirDate))
+                                        },
+                                    )
+                                }
+                            }
                         }
                     }
+                    is UiState.FatalError -> EmptyState(current.message)
                 }
+
+                BannerHost(
+                    events = viewModel.events,
+                    toBanner = { event ->
+                        when (event) {
+                            is RefreshEvent.Banner -> event.message to false
+                            is RefreshEvent.Error -> event.message to true
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
             }
-            is UiState.FatalError -> EmptyState(current.message, modifier = Modifier.padding(padding))
         }
     }
 }

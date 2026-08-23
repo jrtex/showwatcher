@@ -12,9 +12,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,6 +35,7 @@ import com.example.showwatcher.ui.components.EventBanner
 import com.example.showwatcher.ui.components.PosterImage
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArchiveDetailScreen(
     onReactivated: (Long) -> Unit,
@@ -69,49 +72,55 @@ fun ArchiveDetailScreen(
         is UiState.FatalError -> EmptyState(current.message, modifier = modifier)
         is UiState.Content -> {
             val (show, seasonNumbers) = current.data
-            Box(modifier = modifier.fillMaxSize()) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Row(modifier = Modifier.padding(16.dp)) {
-                        PosterImage(
-                            title = show.title,
-                            posterPath = show.posterPath,
-                            modifier = Modifier.size(width = 100.dp, height = 150.dp),
-                        )
-                        Column(modifier = Modifier.padding(start = 16.dp)) {
-                            Text(show.title, style = MaterialTheme.typography.titleLarge)
-                            Text("${show.currentSeason} season(s) completed")
-                            Row(modifier = Modifier.padding(top = 8.dp)) {
-                                OutlinedButton(onClick = { viewModel.refresh() }, enabled = !isRefreshing) {
-                                    Text(if (isRefreshing) "Refreshing…" else "Refresh")
-                                }
-                                Button(
-                                    onClick = { viewModel.reactivate() },
-                                    modifier = Modifier.padding(start = 8.dp),
-                                ) {
-                                    Text("Reactivate")
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = { viewModel.refresh() },
+                modifier = modifier.fillMaxSize(),
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Row(modifier = Modifier.padding(16.dp)) {
+                            PosterImage(
+                                title = show.title,
+                                posterPath = show.posterPath,
+                                modifier = Modifier.size(width = 100.dp, height = 150.dp),
+                            )
+                            Column(modifier = Modifier.padding(start = 16.dp)) {
+                                Text(show.title, style = MaterialTheme.typography.titleLarge)
+                                Text("${show.currentSeason} season(s) completed")
+                                Row(modifier = Modifier.padding(top = 8.dp)) {
+                                    OutlinedButton(onClick = { viewModel.refresh() }, enabled = !isRefreshing) {
+                                        Text(if (isRefreshing) "Refreshing…" else "Refresh")
+                                    }
+                                    Button(
+                                        onClick = { viewModel.reactivate() },
+                                        modifier = Modifier.padding(start = 8.dp),
+                                    ) {
+                                        Text("Reactivate")
+                                    }
                                 }
                             }
                         }
-                    }
-                    LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                        items(seasonNumbers, key = { it }) { seasonNumber ->
-                            SeasonAccordionRow(
-                                seasonNumber = seasonNumber,
-                                episodes = seasonEpisodes[seasonNumber],
-                                onExpand = { viewModel.loadSeasonIfNeeded(seasonNumber) },
-                            )
+                        LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                            items(seasonNumbers, key = { it }) { seasonNumber ->
+                                SeasonAccordionRow(
+                                    seasonNumber = seasonNumber,
+                                    episodes = seasonEpisodes[seasonNumber],
+                                    onExpand = { viewModel.loadSeasonIfNeeded(seasonNumber) },
+                                )
+                            }
                         }
                     }
-                }
 
-                banner?.let { (message, isError) ->
-                    EventBanner(
-                        message = message,
-                        isError = isError,
-                        onDismiss = { banner = null },
-                        modifier = Modifier.align(Alignment.TopCenter),
-                        shadowElevation = 4.dp,
-                    )
+                    banner?.let { (message, isError) ->
+                        EventBanner(
+                            message = message,
+                            isError = isError,
+                            onDismiss = { banner = null },
+                            modifier = Modifier.align(Alignment.TopCenter),
+                            shadowElevation = 4.dp,
+                        )
+                    }
                 }
             }
         }
