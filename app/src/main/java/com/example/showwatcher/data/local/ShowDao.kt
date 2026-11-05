@@ -11,6 +11,9 @@ data class ShowWithProgress(
     val totalCount: Int,
     val watchedCount: Int,
     val nextEpisodeAirDate: String?,
+    val nextEpisodeSeasonNumber: Int? = null,
+    val nextEpisodeNumber: Int? = null,
+    val nextEpisodeName: String? = null,
 )
 
 /** Active-status shows whose current season's first episode hasn't aired yet (or has no known air date). */
@@ -18,12 +21,18 @@ data class ShowUpcoming(
     @Embedded val show: ShowEntity,
     val firstEpisodeAirDate: String?,
     val nextEpisodeAirDate: String?,
+    val nextEpisodeSeasonNumber: Int? = null,
+    val nextEpisodeNumber: Int? = null,
+    val nextEpisodeName: String? = null,
 )
 
 /** A show plus the air date of its most recently watched episode, for Archive sort purposes. */
 data class ShowWithLastWatchedEpisode(
     @Embedded val show: ShowEntity,
     val lastWatchedEpisodeAirDate: String?,
+    val lastWatchedSeasonNumber: Int? = null,
+    val lastWatchedEpisodeNumber: Int? = null,
+    val lastWatchedEpisodeName: String? = null,
 )
 
 @Dao
@@ -45,7 +54,13 @@ interface ShowDao {
         """
         SELECT s.*,
         (SELECT airDate FROM episodes e WHERE e.showId = s.id AND e.watched = 1
-            ORDER BY e.seasonNumber DESC, e.episodeNumber DESC LIMIT 1) AS lastWatchedEpisodeAirDate
+            ORDER BY e.seasonNumber DESC, e.episodeNumber DESC LIMIT 1) AS lastWatchedEpisodeAirDate,
+        (SELECT seasonNumber FROM episodes e WHERE e.showId = s.id AND e.watched = 1
+            ORDER BY e.seasonNumber DESC, e.episodeNumber DESC LIMIT 1) AS lastWatchedSeasonNumber,
+        (SELECT episodeNumber FROM episodes e WHERE e.showId = s.id AND e.watched = 1
+            ORDER BY e.seasonNumber DESC, e.episodeNumber DESC LIMIT 1) AS lastWatchedEpisodeNumber,
+        (SELECT name FROM episodes e WHERE e.showId = s.id AND e.watched = 1
+            ORDER BY e.seasonNumber DESC, e.episodeNumber DESC LIMIT 1) AS lastWatchedEpisodeName
         FROM shows s WHERE s.status = :status
         ORDER BY s.updatedAt DESC
         """,
@@ -64,7 +79,13 @@ interface ShowDao {
             (SELECT airDate FROM episodes e WHERE e.showId = s.id AND e.seasonNumber = s.currentSeason
                 ORDER BY e.episodeNumber ASC LIMIT 1) AS firstEpisodeAirDate,
             (SELECT airDate FROM episodes e WHERE e.showId = s.id AND e.watched = 0
-                ORDER BY e.seasonNumber ASC, e.episodeNumber ASC LIMIT 1) AS nextEpisodeAirDate
+                ORDER BY e.seasonNumber ASC, e.episodeNumber ASC LIMIT 1) AS nextEpisodeAirDate,
+            (SELECT seasonNumber FROM episodes e WHERE e.showId = s.id AND e.watched = 0
+                ORDER BY e.seasonNumber ASC, e.episodeNumber ASC LIMIT 1) AS nextEpisodeSeasonNumber,
+            (SELECT episodeNumber FROM episodes e WHERE e.showId = s.id AND e.watched = 0
+                ORDER BY e.seasonNumber ASC, e.episodeNumber ASC LIMIT 1) AS nextEpisodeNumber,
+            (SELECT name FROM episodes e WHERE e.showId = s.id AND e.watched = 0
+                ORDER BY e.seasonNumber ASC, e.episodeNumber ASC LIMIT 1) AS nextEpisodeName
             FROM shows s WHERE s.status = :status
         )
         WHERE firstEpisodeAirDate IS NOT NULL AND firstEpisodeAirDate <= :today
@@ -80,7 +101,13 @@ interface ShowDao {
             (SELECT airDate FROM episodes e WHERE e.showId = s.id AND e.seasonNumber = s.currentSeason
                 ORDER BY e.episodeNumber ASC LIMIT 1) AS firstEpisodeAirDate,
             (SELECT airDate FROM episodes e WHERE e.showId = s.id AND e.watched = 0
-                ORDER BY e.seasonNumber ASC, e.episodeNumber ASC LIMIT 1) AS nextEpisodeAirDate
+                ORDER BY e.seasonNumber ASC, e.episodeNumber ASC LIMIT 1) AS nextEpisodeAirDate,
+            (SELECT seasonNumber FROM episodes e WHERE e.showId = s.id AND e.watched = 0
+                ORDER BY e.seasonNumber ASC, e.episodeNumber ASC LIMIT 1) AS nextEpisodeSeasonNumber,
+            (SELECT episodeNumber FROM episodes e WHERE e.showId = s.id AND e.watched = 0
+                ORDER BY e.seasonNumber ASC, e.episodeNumber ASC LIMIT 1) AS nextEpisodeNumber,
+            (SELECT name FROM episodes e WHERE e.showId = s.id AND e.watched = 0
+                ORDER BY e.seasonNumber ASC, e.episodeNumber ASC LIMIT 1) AS nextEpisodeName
             FROM shows s WHERE s.status = :status
         )
         WHERE firstEpisodeAirDate IS NULL OR firstEpisodeAirDate > :today

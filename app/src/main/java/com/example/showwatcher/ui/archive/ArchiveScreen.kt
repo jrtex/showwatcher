@@ -5,12 +5,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -22,11 +22,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.showwatcher.data.ViewMode
 import com.example.showwatcher.ui.common.RefreshEvent
 import com.example.showwatcher.ui.common.UiState
+import com.example.showwatcher.ui.common.asListEntries
+import com.example.showwatcher.ui.common.episodeLine
+import com.example.showwatcher.ui.common.withMonthHeaders
 import com.example.showwatcher.ui.components.BannerHost
 import com.example.showwatcher.ui.components.EmptyState
 import com.example.showwatcher.ui.components.ShowCard
+import com.example.showwatcher.ui.components.ShowListRow
+import com.example.showwatcher.ui.components.ShowsOverflowMenu
+import com.example.showwatcher.ui.components.showListEntries
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,6 +44,8 @@ fun ArchiveScreen(
     viewModel: ArchiveViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val viewMode by viewModel.viewMode.collectAsStateWithLifecycle()
+    val showMonthHeaders by viewModel.showMonthHeaders.collectAsStateWithLifecycle()
     Scaffold(
         modifier = modifier,
         // The outer ShowWatcherNavHost Scaffold already pads this screen below the status bar,
@@ -46,7 +55,11 @@ fun ArchiveScreen(
             TopAppBar(
                 title = { Text("Archive") },
                 actions = {
-                    IconButton(onClick = onSettingsClick) { Text("⋮") }
+                    ShowsOverflowMenu(
+                        viewMode = viewMode,
+                        onViewModeChange = viewModel::setViewMode,
+                        onSettingsClick = onSettingsClick,
+                    )
                 },
                 windowInsets = WindowInsets(0, 0, 0, 0),
             )
@@ -66,6 +79,31 @@ fun ArchiveScreen(
                     is UiState.Content -> {
                         if (current.data.isEmpty()) {
                             EmptyState("No archived shows yet — finish a season to see it here.")
+                        } else if (viewMode == ViewMode.LIST) {
+                            val entries = if (showMonthHeaders) {
+                                current.data.withMonthHeaders("shows", itemKey = { it.show.id }, date = { it.lastWatchedEpisodeAirDate })
+                            } else {
+                                current.data.asListEntries { it.show.id }
+                            }
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(vertical = 8.dp),
+                            ) {
+                                showListEntries(entries) { item ->
+                                    ShowListRow(
+                                        title = item.show.title,
+                                        subtitle = episodeLine(
+                                            season = item.lastWatchedSeasonNumber,
+                                            episode = item.lastWatchedEpisodeNumber,
+                                            name = item.lastWatchedEpisodeName,
+                                            airDate = item.lastWatchedEpisodeAirDate,
+                                            fallback = "No episodes watched",
+                                        ),
+                                        posterPath = item.show.posterPath,
+                                        onClick = { onShowClick(item.show.id) },
+                                    )
+                                }
+                            }
                         } else {
                             LazyVerticalGrid(
                                 columns = GridCells.Fixed(2),

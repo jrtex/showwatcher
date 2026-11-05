@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.map
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 private val SORT_ORDER_KEY = stringPreferencesKey("sort_order")
+private val VIEW_MODE_KEY = stringPreferencesKey("view_mode")
 
 class SettingsRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -20,7 +21,14 @@ class SettingsRepositoryImpl @Inject constructor(
     override val sortOrder: Flow<SortOrder> =
         context.settingsDataStore.data.map { prefs -> SortOrder.fromStorageKey(prefs[SORT_ORDER_KEY]) }
 
+    override val viewMode: Flow<ViewMode> =
+        context.settingsDataStore.data.map { prefs -> ViewMode.fromStorageKey(prefs[VIEW_MODE_KEY]) }
+
     override suspend fun setSortOrder(order: SortOrder) {
         context.settingsDataStore.edit { it[SORT_ORDER_KEY] = order.storageKey }
+    }
+
+    override suspend fun setViewMode(mode: ViewMode) {
+        context.settingsDataStore.edit { it[VIEW_MODE_KEY] = mode.storageKey }
     }
 }

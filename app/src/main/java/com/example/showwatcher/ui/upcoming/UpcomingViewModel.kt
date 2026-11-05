@@ -5,12 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.example.showwatcher.data.AppResult
 import com.example.showwatcher.data.Clock
 import com.example.showwatcher.data.SettingsRepository
+import com.example.showwatcher.data.ViewMode
 import com.example.showwatcher.data.local.ShowUpcoming
 import com.example.showwatcher.data.repository.ShowRepository
 import com.example.showwatcher.data.today
 import com.example.showwatcher.ui.common.RefreshEvent
 import com.example.showwatcher.ui.common.ShowListKind
 import com.example.showwatcher.ui.common.UiState
+import com.example.showwatcher.ui.common.isDateSort
 import com.example.showwatcher.ui.common.sortedByShowOrder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -32,7 +34,7 @@ import kotlinx.coroutines.sync.withPermit
 @HiltViewModel
 class UpcomingViewModel @Inject constructor(
     private val repository: ShowRepository,
-    settingsRepository: SettingsRepository,
+    private val settingsRepository: SettingsRepository,
     clock: Clock,
 ) : ViewModel() {
     val uiState: StateFlow<UiState<List<ShowUpcoming>>> =
@@ -47,6 +49,18 @@ class UpcomingViewModel @Inject constructor(
         }
             .map<List<ShowUpcoming>, UiState<List<ShowUpcoming>>> { UiState.Content(it) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
+
+    val viewMode: StateFlow<ViewMode> = settingsRepository.viewMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ViewMode.DEFAULT)
+
+    /** List view inserts month dividers only when the list is ordered by date. */
+    val showMonthHeaders: StateFlow<Boolean> = settingsRepository.sortOrder
+        .map { it.isDateSort() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    fun setViewMode(mode: ViewMode) {
+        viewModelScope.launch { settingsRepository.setViewMode(mode) }
+    }
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
