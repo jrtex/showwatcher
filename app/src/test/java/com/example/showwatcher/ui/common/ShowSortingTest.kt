@@ -2,6 +2,8 @@ package com.example.showwatcher.ui.common
 
 import com.example.showwatcher.data.SortOrder
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 private data class Show(val title: String, val sortDate: String?)
@@ -96,5 +98,13 @@ class ShowSortingTest {
             listOf("Apple", "Zebra"),
             tied.sortByOrder(SortOrder.NEXT_EPISODE_CLOSEST, ShowListKind.ACTIVE_OR_ARCHIVE),
         )
+    }
+
+    @Test
+    fun `caught up when next episode is missing or not yet aired`() {
+        assertTrue(isCaughtUp(null, TODAY))
+        assertTrue(isCaughtUp("2026-07-26", TODAY))
+        assertFalse(isCaughtUp(TODAY, TODAY))
+        assertFalse(isCaughtUp("2026-07-01", TODAY))
     }
 }

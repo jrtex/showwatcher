@@ -11,6 +11,7 @@ import com.example.showwatcher.data.today
 import com.example.showwatcher.ui.common.RefreshEvent
 import com.example.showwatcher.ui.common.ShowListKind
 import com.example.showwatcher.ui.common.UiState
+import com.example.showwatcher.ui.common.isCaughtUp
 import com.example.showwatcher.ui.common.sortedByShowOrder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -29,23 +30,33 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
+/** Active shows split into those with an aired unwatched episode and those that are caught up. */
+data class DashboardShows(
+    val toWatch: List<ShowWithProgress>,
+    val caughtUp: List<ShowWithProgress>,
+) {
+    val all: List<ShowWithProgress> get() = toWatch + caughtUp
+}
+
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val repository: ShowRepository,
     settingsRepository: SettingsRepository,
     clock: Clock,
 ) : ViewModel() {
-    val uiState: StateFlow<UiState<List<ShowWithProgress>>> =
+    val uiState: StateFlow<UiState<DashboardShows>> =
         combine(repository.observeActiveShowsWithProgress(), settingsRepository.sortOrder) { shows, order ->
-            shows.sortedByShowOrder(
+            val today = clock.today()
+            val (toWatch, caughtUp) = shows.sortedByShowOrder(
                 order,
                 kind = ShowListKind.ACTIVE_OR_ARCHIVE,
-                today = clock.today(),
+                today = today,
                 title = { it.show.title },
                 sortDate = { it.nextEpisodeAirDate },
-            )
+            ).partition { !isCaughtUp(it.nextEpisodeAirDate, today) }
+            DashboardShows(toWatch = toWatch, caughtUp = caughtUp)
         }
-            .map<List<ShowWithProgress>, UiState<List<ShowWithProgress>>> { UiState.Content(it) }
+            .map<DashboardShows, UiState<DashboardShows>> { UiState.Content(it) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 
     private val _isRefreshing = MutableStateFlow(false)
@@ -57,7 +68,7 @@ class DashboardViewModel @Inject constructor(
     /** Pull-to-refresh: re-fetches every show currently shown on this tab. */
     fun refreshAll() {
         if (_isRefreshing.value) return
-        val ids = (uiState.value as? UiState.Content)?.data?.map { it.show.id } ?: return
+        val ids = (uiState.value as? UiState.Content)?.data?.all?.map { it.show.id } ?: return
         if (ids.isEmpty()) return
 
         viewModelScope.launch {

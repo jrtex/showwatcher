@@ -19,11 +19,13 @@ fun ShowCard(
     footer: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
+    dimmed: Boolean = false,
 ) {
     Card(modifier = modifier.fillMaxWidth(), onClick = onClick) {
         PosterImage(
             title = title,
             posterPath = posterPath,
+            dimmed = dimmed,
             modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f),
         )
         Column(modifier = Modifier.padding(8.dp)) {

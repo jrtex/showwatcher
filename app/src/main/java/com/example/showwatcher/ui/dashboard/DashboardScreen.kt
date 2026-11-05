@@ -1,15 +1,20 @@
 package com.example.showwatcher.ui.dashboard
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -65,7 +70,8 @@ fun DashboardScreen(
                         CircularProgressIndicator()
                     }
                     is UiState.Content -> {
-                        if (current.data.isEmpty()) {
+                        val data = current.data
+                        if (data.all.isEmpty()) {
                             EmptyState("No active shows yet — tap + to add one")
                         } else {
                             LazyVerticalGrid(
@@ -73,17 +79,16 @@ fun DashboardScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
                             ) {
-                                items(current.data, key = { it.show.id }) { item: ShowWithProgress ->
-                                    ShowCard(
-                                        title = item.show.title,
-                                        posterPath = item.show.posterPath,
-                                        onClick = { onShowClick(item.show.id) },
-                                        modifier = Modifier.padding(6.dp),
-                                        footer = {
-                                            Text("Season ${item.show.currentSeason} — ${item.watchedCount}/${item.totalCount}")
-                                            WatchProgressBar(watched = item.watchedCount, total = item.totalCount)
-                                        },
-                                    )
+                                items(data.toWatch, key = { it.show.id }) { item ->
+                                    DashboardShowCard(item, dimmed = false, onShowClick = onShowClick)
+                                }
+                                if (data.caughtUp.isNotEmpty()) {
+                                    item(key = "caught-up-header", span = { GridItemSpan(maxLineSpan) }) {
+                                        CaughtUpHeader()
+                                    }
+                                    items(data.caughtUp, key = { it.show.id }) { item ->
+                                        DashboardShowCard(item, dimmed = true, onShowClick = onShowClick)
+                                    }
                                 }
                             }
                         }
@@ -103,5 +108,37 @@ fun DashboardScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun DashboardShowCard(item: ShowWithProgress, dimmed: Boolean, onShowClick: (Long) -> Unit) {
+    ShowCard(
+        title = item.show.title,
+        posterPath = item.show.posterPath,
+        onClick = { onShowClick(item.show.id) },
+        modifier = Modifier.padding(6.dp),
+        dimmed = dimmed,
+        footer = {
+            Text("Season ${item.show.currentSeason} — ${item.watchedCount}/${item.totalCount}")
+            WatchProgressBar(watched = item.watchedCount, total = item.totalCount)
+        },
+    )
+}
+
+@Composable
+private fun CaughtUpHeader() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        HorizontalDivider(Modifier.weight(1f))
+        Text(
+            text = "Caught-up",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp),
+        )
+        HorizontalDivider(Modifier.weight(1f))
     }
 }

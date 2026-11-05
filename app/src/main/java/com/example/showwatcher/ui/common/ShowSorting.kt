@@ -11,6 +11,14 @@ import com.example.showwatcher.data.SortOrder
 enum class ShowListKind { ACTIVE_OR_ARCHIVE, UPCOMING }
 
 /**
+ * An active show is "caught up" when there's nothing watchable right now: no unwatched episode
+ * left, the next one has no known air date, or it hasn't aired yet (date > [today]). Mirrors the
+ * tier-1/tier-2 split in [sortedByShowOrder].
+ */
+fun isCaughtUp(nextEpisodeAirDate: String?, today: String): Boolean =
+    nextEpisodeAirDate == null || nextEpisodeAirDate > today
+
+/**
  * Date sorts rank in four tiers, in this order: (1) shows with no sort date sort last — the
  * `sortDate(it) == null` primary key forces this in both directions, since a plain
  * nullsLast()/nullsFirst() comparator would flip which end nulls land on depending on the
