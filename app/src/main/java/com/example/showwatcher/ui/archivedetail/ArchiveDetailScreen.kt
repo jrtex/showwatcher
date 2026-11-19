@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -25,10 +26,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.showwatcher.data.local.EpisodeEntity
 import com.example.showwatcher.ui.common.UiState
 import com.example.showwatcher.ui.components.EmptyState
 import com.example.showwatcher.ui.components.EventBanner
@@ -130,7 +132,7 @@ fun ArchiveDetailScreen(
 @Composable
 private fun SeasonAccordionRow(
     seasonNumber: Int,
-    episodes: List<com.example.showwatcher.data.local.EpisodeEntity>?,
+    episodes: List<EpisodeEntity>?,
     onExpand: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -153,14 +155,37 @@ private fun SeasonAccordionRow(
             if (episodes == null) {
                 CircularProgressIndicator(modifier = Modifier.padding(8.dp))
             } else {
-                episodes.forEach { episode ->
-                    Text(
-                        text = "${episode.episodeNumber}. ${episode.name}",
-                        textDecoration = if (episode.watched) TextDecoration.LineThrough else TextDecoration.None,
-                        modifier = Modifier.padding(vertical = 2.dp),
-                    )
-                }
+                episodes.forEach { episode -> ArchivedEpisodeRow(episode) }
             }
+        }
+    }
+}
+
+@Composable
+private fun ArchivedEpisodeRow(episode: EpisodeEntity) {
+    val textColor = if (episode.watched) {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+    } else {
+        Color.Unspecified
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Display-only: archived shows aren't editable, so no click handler.
+        Checkbox(checked = episode.watched, onCheckedChange = null, modifier = Modifier.padding(12.dp))
+        Text(
+            text = "${episode.episodeNumber}. ${episode.name}",
+            color = textColor,
+            modifier = Modifier.weight(1f),
+        )
+        episode.airDate?.let {
+            Text(
+                text = it,
+                color = textColor,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(start = 8.dp),
+            )
         }
     }
 }
